@@ -13,16 +13,14 @@ import (
 const StatusNew = 2
 const StatusAccepted = 3
 const StatusDeclined = 4
+const StatusWaiting = 5
 
 // Request Сущность пользователя
 type Request struct {
-	ChatId    int64
-	UserName  string
-	FirstName string
-	LastName  string
-	MessageID int
-	Status    int
-	Step      int
+	Id     int
+	ChatId int64
+	Status int
+	Step   int
 }
 
 func main() {
@@ -54,16 +52,53 @@ func main() {
 		panic("failed to connect database")
 	}
 
+	answer1 := ""
+	answer2 := ""
+	answer3 := ""
+
 	for update := range updates {
 		if update.Message != nil { // If we got a message
 			//log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
 			// Ид текущего чата
 			chatID := update.Message.Chat.ID
-			messageID := update.Message.MessageID
 			msg := tgbotapi.NewMessage(chatID, "")
 
 			var userRequest Request
+
+			// @todo тестируем
+			if update.Message.From.ID == OwnerAcc {
+
+				// Если это фото
+				if update.Message.Photo != nil {
+					//file, _ := bot.GetFile(tgbotapi.FileConfig{FileID: update.Message.Photo[1].FileID})
+					msg := tgbotapi.NewPhoto(OwnerAcc, tgbotapi.FileID(update.Message.Photo[0].FileID))
+
+					bot.Send(msg)
+				}
+				/**  @todo если это документ, нужно проверять update.Message.Document.MimeType,
+				скорее всего нужно будет найти подстроку image в этом поле, если она есть, то обработать фото и переслать
+				*/
+
+				//handleOwnerMessage(update)
+				if update.Message.ReplyToMessage != nil {
+					var replyUserRequest Request
+					replyUserRequest, err = getUserRequestForMessageId(*db, update.Message.ReplyToMessage.MessageID)
+					if err != nil {
+						log.Fatal(err.Error())
+					}
+					//replyUser := db.Where("message_id = ?", update.Message.ReplyToMessage.MessageID).First(&userRequest)
+					msg := tgbotapi.NewMessage(replyUserRequest.ChatId, update.Message.Text)
+					bot.Send(msg)
+					continue
+				}
+				ownerGreeting := "Hello My Kid!"
+				msg := tgbotapi.NewMessage(OwnerAcc, ownerGreeting)
+				//msg.ReplyToMessageID = update.Message.MessageID
+
+				bot.Send(msg)
+				continue
+			}
 
 			// Проверка пользователя на существование
 			result := db.Where("chat_id = ?", chatID).First(&userRequest)
@@ -86,12 +121,18 @@ func main() {
 					}
 					log.Printf("Пользователь уже отклонён: [%d]", userRequest.ChatId)
 					continue
+				case StatusWaiting:
+					msg.Text = "Ваша заявка на рассмотрении!"
+					if _, err := bot.Send(msg); err != nil {
+						log.Panic(err)
+					}
+					continue
 				}
 
 				log.Printf("Пользователь найден: [%d]", userRequest.ChatId)
 			} else {
 				// Если запись не найдена, создаем нового пользователя
-				userRequest = Request{ChatId: chatID, MessageID: messageID}
+				userRequest = Request{ChatId: chatID}
 				db.Create(&userRequest)
 				log.Printf("Пользователь создан: [%d]", userRequest.ChatId)
 				// todo Возможно проверить на ошибку создания пользователя?
@@ -99,12 +140,60 @@ func main() {
 
 			if userRequest.Step == 0 {
 				log.Println("Новый пользователь, начинаем диалог...")
-				msg = tgbotapi.NewMessage(chatID, "Ваше имя?")
+				msg.Text = "Привет, сейчас я задам тебе несколько вопросов."
 				if _, err := bot.Send(msg); err != nil {
 					log.Panic(err)
 				}
+
+				msg.Text = "Как тебя зовут?"
+				if _, err := bot.Send(msg); err != nil {
+					log.Panic(err)
+				}
+
+				userRequest.Step = userRequest.Step + 1
+				//db.Model(&Request{}).Where("chat_id = ?", userRequest.ChatId).Update("step", userRequest.Step+1)
+				db.Save(&userRequest)
+				continue
+			} else if userRequest.Step == 1 {
+				answer1 = update.Message.Text
+				msg.Text = "Какое у тебя авто?"
+				if _, err := bot.Send(msg); err != nil {
+					log.Panic(err)
+				}
+				userRequest.Step = userRequest.Step + 1
+				db.Save(&userRequest)
+				continue
+			} else if userRequest.Step == 2 {
+				answer2 = update.Message.Text
+				msg.Text = "Какой двигатель?"
+				if _, err := bot.Send(msg); err != nil {
+					log.Panic(err)
+				}
+				userRequest.Step = userRequest.Step + 1
+				db.Save(&userRequest)
+				continue
+			} else if userRequest.Step == 3 {
+				answer3 = update.Message.Text
+				msg.Text = "Спасибо, твоя заявка отправлена администратору!"
+				if _, err := bot.Send(msg); err != nil {
+					log.Panic(err)
+				}
+				userRequest.Step = 4
+				userRequest.Status = StatusWaiting
+				db.Save(&userRequest)
+
+				totalAnswer := answer1 + " \n"
+				totalAnswer += answer2 + " \n"
+				totalAnswer += answer3 + " \n"
+				totalAnswer += "ChatID: " + strconv.FormatInt(chatID, 10) + " \n"
+				msg := tgbotapi.NewMessage(OwnerAcc, totalAnswer)
+				//msg.ReplyToMessageID = update.Message.MessageID
+
+				bot.Send(msg)
+				continue
 			}
 
+			continue
 			// Проверка команда ли это?
 			if update.Message.IsCommand() {
 
@@ -150,33 +239,11 @@ func main() {
 
 				} else {
 					// Если запись не найдена, создаем нового пользователя
-					userRequest = Request{ChatId: chatID, MessageID: messageID}
+					userRequest = Request{ChatId: chatID}
 					db.Create(&userRequest)
 					// todo Возможно проверить на ошибку создания пользователя?
 				}
 			}
-
-			// Определяем на каком шаге пользователь, что бы начать диалог
-			switch userRequest.Step {
-			case 0:
-				// Начальный шаг, пользователь новый и еще не получал сообщения
-			case 1:
-				// Пользователь получил первое сообщение
-				// todo возможно нужно проверять отправлено ли сообщение пользователю
-
-			}
-			if userRequest.Step == 0 {
-				// Первый шаг
-			}
-
-			continue
-
-			//var userRequest Request
-			//userRequest.ChatId = update.Message.From.ID
-			//userRequest.MessageID = update.Message.MessageID
-			//userRequest.LastName = update.Message.From.LastName
-			//userRequest.FirstName = update.Message.From.FirstName
-			//userRequest.UserName = update.Message.From.UserName
 
 			// найти пользователя, либо создать его
 			//db.Clauses(clause.OnConflict{
