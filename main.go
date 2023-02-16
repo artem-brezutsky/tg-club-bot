@@ -38,13 +38,14 @@ func main() {
 	OwnerAcc, _ := strconv.ParseInt(os.Getenv("OWNER_ACC"), 10, 64)
 	//SupergroupId, _ := strconv.ParseInt(os.Getenv("SUPERGROUP_ID"), 10, 64)
 	SupergroupF30Id, _ := strconv.ParseInt(os.Getenv("SUPERGROUP_F30_ID"), 10, 64)
+	DSN := os.Getenv("DSN")
 
 	bot, err := tgbotapi.NewBotAPI(Token)
 	if err != nil {
 		log.Panic(err)
 	}
 
-	bot.Debug = true
+	//bot.Debug = true
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
@@ -53,9 +54,7 @@ func main() {
 
 	updates := bot.GetUpdatesChan(u)
 
-	// todo Вынести в конфиг
-	dsn := "admin:root@tcp(127.0.0.1:3306)/bmw_club_bot"
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(mysql.Open(DSN), &gorm.Config{})
 	if err != nil {
 		panic("failed to connect database")
 	}
@@ -65,13 +64,24 @@ func main() {
 		answer1 = ""
 		answer2 = ""
 		answer3 = ""
+		answer4 = ""
 	)
 
+	// Вопросы
 	var (
-		question1 = "Как тебя зовут?"
-		question2 = "Какое у тебя авто?"
-		question3 = "Какой двигатель?"
+		question1 = "Як тебе звати?"
+		question2 = "З якого ти міста?"
+		question3 = "Яке в тебе авто?"
+		question4 = "Який двигун?"
+		question5 = "Надійшли фото автомобіля, щоб було видно державний номер авто - після натисни «ГОТОВО»\nЯкщо вважаєш за необхідне приховати номерний знак - це твоє право, але ми повинні розуміти, що ти з України та тобі можна довіряти."
 	)
+
+	// todo что то сделать с этими ссылками в статичных текстах
+	sendReplyPlease := "Будь ласка, дай відповідь на питання вище!"
+	userAlreadyDoneMsg := "Ваша заявку вже було розглянуто, якщо виникли питання - зв'яжіться з <a href=\"tg://user?id=6225178130\">адміністратором</a>."
+	userWaitingMsg := "Наразі ваша заявка на розгляді, якщо виникли питання - зв'яжіться з <a href=\"tg://user?id=6225178130\">адміністратором</a>."
+	rejectRequestMsg := "Вашу заявку було відхилено, для інформації зв'яжіться з <a href=\"tg://user?id=6225178130\">адміністратором</a>."
+	wellDoneMessage := "Дякуємо, найближчим часом ви отримаєте посилання на чат. Якщо протягом тривалого часу ви не отримали посилання - зв'яжіться з адміністрацією - @fclubkyiv."
 
 	var doneButton = tgbotapi.NewReplyKeyboard(
 		tgbotapi.NewKeyboardButtonRow(
@@ -81,11 +91,11 @@ func main() {
 
 	var requestButtons = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Принять", "accept_request"),
-			tgbotapi.NewInlineKeyboardButtonData("Отклонить", "reject_request"),
+			tgbotapi.NewInlineKeyboardButtonData("Прийняти", "accept_request"),
+			tgbotapi.NewInlineKeyboardButtonData("Відхилити", "reject_request"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Послать нахуй пса", "fuck_off_dog"),
+			tgbotapi.NewInlineKeyboardButtonData("Заблокувати орка", "fuck_off_dog"),
 		),
 	)
 
@@ -96,12 +106,11 @@ func main() {
 
 	for update := range updates {
 
-		fromChat := update.FromChat()
-		if fromChat.ID == SupergroupF30Id {
-			continue
-		}
-
 		if update.Message != nil { // If we got a message
+			// Пропускаем сообщения если они в из суперчата
+			if update.Message.Chat.ID == SupergroupF30Id {
+				continue
+			}
 
 			// Ид текущего чата
 			chatID := update.Message.Chat.ID
@@ -109,97 +118,35 @@ func main() {
 
 			var userRequest Request
 
-			// @todo тестируем
-			//if update.Message.From.ID == 123 {
-			//msg := tgbotapi.NewMessage(update.Message.Chat.ID, update.Message.Text)
-			//
-			//switch update.Message.Text {
-			//case "open":
-			//	msg.ReplyMarkup = but
-			//case "close":
-			//	msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
-			//}
-			//
-			//if _, err := bot.Send(msg); err != nil {
-			//	log.Panic(err)
-			//}
-			//
-			//continue
-			// Если это фото
-			//if update.Message.Photo != nil {
-			//	//msg := tgbotapi.NewMessage(update.Message.Chat.ID, update.Message.Text)
-			//	answerFileIds = append(answerFileIds, update.Message.Photo[1].FileID)
-			//	msg.ReplyMarkup = doneButton
-			//	if _, err := bot.Send(msg); err != nil {
-			//		log.Panic(err)
-			//	}
-			//} else if update.Message.Document != nil &&
-			//	strings.Contains(update.Message.Document.MimeType, "image") {
-			//	//msg := tgbotapi.NewDocument(OwnerAcc, tgbotapi.FileID(update.Message.Document.FileID))
-			//	answerFileIds = append(answerFileIds, update.Message.Document.FileID)
-			//	msg.ReplyMarkup = doneButton
-			//	if _, err := bot.Send(msg); err != nil {
-			//		log.Panic(err)
-			//	}
-			//}
+			// @todo тестируем сообщения от конкретного человека
+			if update.Message.From.ID == 123 {
+			}
 
-			//if update.Message.Text == "Готово👌" {
-			//	msg := tgbotapi.NewMessage(OwnerAcc, "Заявка принята")
-			//	msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
-			//	if _, err := bot.Send(msg); err != nil {
-			//		log.Panic(err)
-			//	}
-			//	log.Println("Готово👌")
-			//	// Готово👌
-			//	continue
-			//}
+			// Проверка команда ли это?
+			if update.Message.IsCommand() {
 
-			//msg := tgbotapi.NewMessage(OwnerAcc, update.Message.Text)
-			//bot.Send(msg)
-			//continue
-			//handleOwnerMessage(update)
-			//if update.Message.ReplyToMessage != nil {
-			//	var replyUserRequest Request
-			//	replyUserRequest, err = getUserRequestForMessageId(*db, update.Message.ReplyToMessage.MessageID)
-			//	if err != nil {
-			//		log.Fatal(err.Error())
-			//	}
-			//	//replyUser := db.Where("message_id = ?", update.Message.ReplyToMessage.MessageID).First(&userRequest)
-			//	msg := tgbotapi.NewMessage(replyUserRequest.ChatId, update.Message.Text)
-			//	bot.Send(msg)
-			//	continue
-			//}
-			//ownerGreeting := "Hello My Kid!"
-			//msg := tgbotapi.NewMessage(OwnerAcc, ownerGreeting)
-			//msg.ReplyToMessageID = update.Message.MessageID
-			//
-			//bot.Send(msg)
-			//continue
-			//}
+				msg := tgbotapi.NewMessage(chatID, "")
 
-			if update.Message.From.ID == OwnerAcc {
+				switch update.Message.Command() {
+				case "restart":
+					msg.Text = "Удаляю пользователя с ID: " + strconv.FormatInt(chatID, 10) + "..."
+					if _, err := bot.Send(msg); err != nil {
+						log.Panic(err)
+					}
+					db.Where("chat_id = ?", chatID).Delete(&Request{})
 
-				// Создаём конфиг для ссылки на вступление в группу
-				inviteLinkConfig := tgbotapi.CreateChatInviteLinkConfig{
-					ChatConfig: tgbotapi.ChatConfig{
-						ChatID: SupergroupF30Id,
-					},
-					Name:               "",
-					ExpireDate:         0,
-					MemberLimit:        1,
-					CreatesJoinRequest: false,
+					msg.Text = "Пользователь удален. Можете попробовать заново создать заявку отправив любое сообщение в бот."
+					if _, err := bot.Send(msg); err != nil {
+						log.Panic(err)
+					}
+					continue
+				default:
+					msg.Text = "Неизвестная команда"
+					if _, err := bot.Send(msg); err != nil {
+						log.Panic(err)
+					}
+					continue
 				}
-
-				// Отправляем запрос на получение ссылки по конфигу
-				resp, _ := bot.Request(inviteLinkConfig)
-				// Собираем массив сырых байт с ответа
-				data := []byte(resp.Result)
-				// Создает экземпляр типа ChatInviteLink для заполнения его ответом
-				var inviteLink2 tgbotapi.ChatInviteLink
-				// Распарсиваем ответ в созданный выше экземпляр типа ChatInviteLink
-				_ = json.Unmarshal(data, &inviteLink2)
-
-				log.Println(inviteLink2.InviteLink)
 			}
 
 			// Проверка пользователя на существование
@@ -209,7 +156,7 @@ func main() {
 				switch userRequest.Status {
 				case StatusAccepted:
 					// Пользователь уже зарегистрирован и добавлен в группу
-					msg.Text = "Вы уже приняты!"
+					msg.Text = userAlreadyDoneMsg
 					if _, err := bot.Send(msg); err != nil {
 						log.Panic(err)
 					}
@@ -217,14 +164,14 @@ func main() {
 					continue
 				case StatusDeclined:
 					// Пользователь отклонён
-					msg.Text = "Ваша заявка уже была отклонена!"
+					msg.Text = userAlreadyDoneMsg
 					if _, err := bot.Send(msg); err != nil {
 						log.Panic(err)
 					}
 					log.Printf("Пользователь уже отклонён: [%d]", userRequest.ChatId)
 					continue
 				case StatusWaiting:
-					msg.Text = "Ваша заявка на рассмотрении!"
+					msg.Text = userWaitingMsg
 					if _, err := bot.Send(msg); err != nil {
 						log.Panic(err)
 					}
@@ -243,7 +190,7 @@ func main() {
 			switch userRequest.Step {
 			case 0:
 				log.Println("Новый пользователь, начинаем диалог...")
-				msg.Text = "Привет, сейчас я задам тебе несколько вопросов."
+				msg.Text = "Привіт, зараз я поставлю тобі кілька запитань!"
 				if _, err := bot.Send(msg); err != nil {
 					log.Panic(err)
 				}
@@ -259,46 +206,58 @@ func main() {
 			case 1:
 				// todo Вынести в отдельный метод.
 				// Проверяем ответ пользователя на emoji
+				// Если не ответ не пришел в нормальном формате, просим ещё раз ответить
 				update.Message.Text = gomoji.RemoveEmojis(update.Message.Text)
 				if update.Message.Text == "" {
-					msg.Text = "Пожалуйста, ответьте на вопрос выше!"
+					// Если не ответ не пришел в нормальном формате, просим ещё раз ответить
+					msg.Text = sendReplyPlease
 					if _, err := bot.Send(msg); err != nil {
 						log.Panic(err)
 					}
+					// Задаём предыдущий вопрос
 					msg.Text = question1
 					if _, err := bot.Send(msg); err != nil {
 						log.Panic(err)
 					}
 					continue
 				}
+
+				// Записываем ответ на вопрос
 				answer1 = update.Message.Text
+				// Задаём следующий вопрос
 				msg.Text = question2
 				if _, err := bot.Send(msg); err != nil {
 					log.Panic(err)
 				}
+				// Переводим пользователя на следующий шаг
 				userRequest.Step = userRequest.Step + 1
 				db.Save(&userRequest)
 				continue
 			case 2:
 				// todo Вынести в отдельный метод.
 				// Проверяем ответ пользователя на emoji
+				// Если не ответ не пришел в нормальном формате, просим ещё раз ответить
 				update.Message.Text = gomoji.RemoveEmojis(update.Message.Text)
 				if update.Message.Text == "" {
-					msg.Text = "Пожалуйста, ответьте на вопрос выше!"
+					msg.Text = sendReplyPlease
 					if _, err := bot.Send(msg); err != nil {
 						log.Panic(err)
 					}
+					// Задаём предыдущий вопрос
 					msg.Text = question2
 					if _, err := bot.Send(msg); err != nil {
 						log.Panic(err)
 					}
 					continue
 				}
+				// Записываем ответ на вопрос
 				answer2 = update.Message.Text
+				// Задаём следующий вопрос
 				msg.Text = question3
 				if _, err := bot.Send(msg); err != nil {
 					log.Panic(err)
 				}
+				// Переводим пользователя на следующий шаг
 				userRequest.Step = userRequest.Step + 1
 				db.Save(&userRequest)
 				continue
@@ -307,26 +266,61 @@ func main() {
 				// Проверяем ответ пользователя на emoji
 				update.Message.Text = gomoji.RemoveEmojis(update.Message.Text)
 				if update.Message.Text == "" {
-					msg.Text = "Пожалуйста, ответьте на вопрос выше!"
+					// Если не ответ не пришел в нормальном формате, просим ещё раз ответить
+					msg.Text = sendReplyPlease
 					if _, err := bot.Send(msg); err != nil {
 						log.Panic(err)
 					}
+					// Задаём предыдущий вопрос
 					msg.Text = question3
 					if _, err := bot.Send(msg); err != nil {
 						log.Panic(err)
 					}
 					continue
 				}
+				// Записываем ответ на вопрос
 				answer3 = update.Message.Text
-				msg.Text = "Пришли фото автомобиля. После этого нажми кнопку \"Готово\""
-				msg.ReplyMarkup = doneButton
+				// Задаём следующий вопрос
+				msg.Text = question4
 				if _, err := bot.Send(msg); err != nil {
 					log.Panic(err)
 				}
+				// Переводим пользователя на следующий шаг
 				userRequest.Step = userRequest.Step + 1
 				db.Save(&userRequest)
 				continue
 			case 4:
+				// todo Вынести в отдельный метод.
+				// Проверяем ответ пользователя на emoji
+				update.Message.Text = gomoji.RemoveEmojis(update.Message.Text)
+				if update.Message.Text == "" {
+					// Если не ответ не пришел в нормальном формате, просим ещё раз ответить
+					msg.Text = sendReplyPlease
+					if _, err := bot.Send(msg); err != nil {
+						log.Panic(err)
+					}
+					// Задаём предыдущий вопрос
+					msg.Text = question4
+					if _, err := bot.Send(msg); err != nil {
+						log.Panic(err)
+					}
+					continue
+				}
+				// Записываем ответ на вопрос
+				answer4 = update.Message.Text
+				// Задаём следующий вопрос
+				msg.Text = question5
+				// Отправляем кнопку "Готово"
+				msg.ReplyMarkup = doneButton
+				if _, err := bot.Send(msg); err != nil {
+					log.Panic(err)
+				}
+				// Переводим пользователя на следующий шаг
+				userRequest.Step = userRequest.Step + 1
+				db.Save(&userRequest)
+				continue
+			case 5:
+				// Проверяем что бы ответ пользователя были фото
 				if update.Message.Photo != nil {
 					answerFileIds = append(answerFileIds, update.Message.Photo[1].FileID)
 					isPhotoFiles = true
@@ -342,33 +336,34 @@ func main() {
 
 				if update.Message.Text == "Готово👌" {
 					if answerFileIds == nil {
-						msg.Text = "Пришли фото автомобиля. После этого нажми кнопку \"Готово\""
+						msg.Text = question5
 						msg.ReplyMarkup = doneButton
 						if _, err := bot.Send(msg); err != nil {
 							log.Panic(err)
 						}
 						continue
 					}
-					msg.Text = "Спасибо, твоя заявка отправлена администратору!"
+					msg.Text = wellDoneMessage
 					msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
 					if _, err := bot.Send(msg); err != nil {
 						log.Panic(err)
 					}
 
 					// Обновляем статусы
-					userRequest.Step = 5
+					userRequest.Step = 6
 					userRequest.Status = StatusWaiting
 					db.Save(&userRequest)
 					// Готово👌
 
 					// Отправка заявки админу
-					totalAnswer := "Имя: " + answer1 + " \n"
-					totalAnswer += "Автомобиль: " + answer2 + " \n"
-					totalAnswer += "Двигатель: " + answer3 + " \n"
+					totalAnswer := "Ім'я: " + answer1 + " \n"
+					totalAnswer += "Місто: " + answer2 + " \n"
+					totalAnswer += "Авто: " + answer3 + " \n"
+					totalAnswer += "Двигун: " + answer4 + " \n"
 					totalAnswer += "ChatID: " + strconv.FormatInt(chatID, 10) + " \n"
 
 					// Отправляем текст заявки
-					// todo сделать кнопки принять/отклонить
+					// Добавляем кнопки для отправки принятия
 					msg := tgbotapi.NewMessage(OwnerAcc, totalAnswer)
 					msg.ReplyMarkup = requestButtons
 					if _, err := bot.Send(msg); err != nil {
@@ -400,7 +395,8 @@ func main() {
 					answerFileIds = nil
 					continue
 				} else {
-					msg.Text = "Пришли фото автомобиля. После этого нажми кнопку \"Готово\""
+					// Если пришел какой-то текст кроме "готово", отправляем ещё раз вопрос о фото
+					msg.Text = question5
 					msg.ReplyMarkup = doneButton
 					if _, err := bot.Send(msg); err != nil {
 						log.Panic(err)
@@ -408,18 +404,6 @@ func main() {
 					continue
 				}
 			}
-
-			//if userRequest.Step == 0 {
-			//
-			//} else if userRequest.Step == 1 {
-			//
-			//} else if userRequest.Step == 2 {
-			//
-			//} else if userRequest.Step == 3 {
-			//
-			//} else if userRequest.Step == 4 {
-			//
-			//}
 
 			//continue
 			// Проверка команда ли это?
@@ -473,59 +457,6 @@ func main() {
 			//	}
 			//}
 
-			// найти пользователя, либо создать его
-			//db.Clauses(clause.OnConflict{
-			//	Columns:   []clause.Column{{Name: "chat_id"}},
-			//	DoUpdates: clause.AssignmentColumns([]string{"message_id"}),
-			//}).Create(&userRequest)
-
-			// Начинаем проверять входящее сообщение
-			// Если это команда
-			//if update.Message.IsCommand() {
-			//	// Обработка команды /start
-			//
-			//	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
-			//
-			//	switch update.Message.Command() {
-			//	case "start":
-			//
-			//		// задать вопрос
-			//		msg.Text = "Привіт! З якого ти міста? за бажанням - вкажи власне ім'я?"
-			//	default:
-			//		msg.Text = "I don't know that command"
-			//	}
-			//
-			//	if _, err := bot.Send(msg); err != nil {
-			//		log.Panic(err)
-			//	}
-			//	//handleCommand(update)
-			//
-			//	continue
-			//}
-
-			//if update.Message.From.ID == OwnerAcc {
-			//	//handleOwnerMessage(update)
-			//	if update.Message.ReplyToMessage != nil {
-			//		var replyUserRequest Request
-			//		replyUserRequest, err = getUserRequestForMessageId(*db, update.Message.ReplyToMessage.MessageID)
-			//		if err != nil {
-			//			log.Fatal(err.Error())
-			//		}
-			//		//replyUser := db.Where("message_id = ?", update.Message.ReplyToMessage.MessageID).First(&userRequest)
-			//		msg := tgbotapi.NewMessage(replyUserRequest.ChatId, update.Message.Text)
-			//		bot.Send(msg)
-			//		continue
-			//	}
-			//	ownerGreeting := "Hello My Kid!"
-			//	msg := tgbotapi.NewMessage(OwnerAcc, ownerGreeting)
-			//	//msg.ReplyToMessageID = update.Message.MessageID
-			//
-			//	bot.Send(msg)
-			//	continue
-			//}
-
-			//msg = tgbotapi.NewForward(OwnerAcc, update.Message.From.ID, update.Message.MessageID)
-			//msg.ReplyToMessageID = update.Message.MessageID
 		} else if update.CallbackQuery != nil {
 			callback := tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data)
 
@@ -550,9 +481,9 @@ func main() {
 			// todo переделать все статусы что бы брать их тайтлы
 			// todo вынести всё в отдельные функции
 			if user.Status == StatusAccepted {
-				replText := "Пользователь был рассмотрен! \n"
-				replText += "Текущий статус пользователя с ChatID: " +
-					strconv.FormatInt(OwnerAcc, 10) + " - Принят"
+				replText := "Користувач був розглянутий! \n"
+				replText += "Поточний статус користувача з ChatID: " +
+					strconv.FormatInt(requestUserChatID, 10) + " - Принятий!"
 
 				msg := tgbotapi.NewMessage(OwnerAcc, replText)
 				if _, err := bot.Send(msg); err != nil {
@@ -561,9 +492,9 @@ func main() {
 
 				continue
 			} else if user.Status == StatusDeclined {
-				replText := "Пользователь был рассмотрен! \n"
-				replText += "Текущий статус пользователя с ChatID: " +
-					strconv.FormatInt(OwnerAcc, 10) + " - Отклонён"
+				replText := "Користувач був розглянутий! \n"
+				replText += "Поточний статус користувача з ChatID: " +
+					strconv.FormatInt(requestUserChatID, 10) + " - Відхилений!"
 
 				msg := tgbotapi.NewMessage(OwnerAcc, replText)
 				if _, err := bot.Send(msg); err != nil {
@@ -572,9 +503,9 @@ func main() {
 
 				continue
 			} else if user.Status == StatusBanned {
-				replText := "Пользователь был рассмотрен! \n"
-				replText += "Текущий статус пользователя с ChatID: " +
-					strconv.FormatInt(OwnerAcc, 10) + " - В бане"
+				replText := "Користувач був розглянутий! \n"
+				replText += "Поточний статус користувача з ChatID: " +
+					strconv.FormatInt(requestUserChatID, 10) + " - Заблокований!"
 
 				msg := tgbotapi.NewMessage(OwnerAcc, replText)
 				if _, err := bot.Send(msg); err != nil {
@@ -586,8 +517,11 @@ func main() {
 
 			// Если команда fuck_off_dog, обрабатываем и шлём сообщение клиенту оставившему заявку
 			if callback.Text == "fuck_off_dog" {
-				// Шлём пса на хуй
-				msg := tgbotapi.NewMessage(requestUserChatID, "Иди на хуй, пёс!")
+				// Блокируем пользователя
+				replText := "Вибачте, Ваша заявка була заблокована!\n"
+				replText += "У разі виникнення питань – зв'яжіться з <a href=\"tg://user?id=6225178130\">адміністратором</a>."
+				msg := tgbotapi.NewMessage(requestUserChatID, replText)
+				msg.ParseMode = "HTML"
 				if _, err := bot.Send(msg); err != nil {
 					panic(err)
 				}
@@ -597,18 +531,17 @@ func main() {
 				db.Save(&user)
 
 				// Ответное сообщение администратору
-				msg = tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, "Пользователь успешно послан на хуй!")
+				msg = tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, "Користувач був успішно заблокованний!")
 				if _, err := bot.Send(msg); err != nil {
 					panic(err)
 				}
 			} else if callback.Text == "accept_request" {
-
 				// Создаём конфиг для ссылки на вступление в группу
 				inviteLinkConfig := tgbotapi.CreateChatInviteLinkConfig{
 					ChatConfig: tgbotapi.ChatConfig{
 						ChatID: SupergroupF30Id,
 					},
-					Name:               "ссылка на группу!",
+					Name:               "посилання на групу",
 					ExpireDate:         0,
 					MemberLimit:        1,
 					CreatesJoinRequest: false,
@@ -625,28 +558,32 @@ func main() {
 				_ = json.Unmarshal(data, &chatInviteLink)
 
 				// todo бот должен формировать ссылку на вступление в группу, для 1 человека и отправлять её пользователю
-				respText := "Поздравляем, ваша заявка принята! \n"
-				respText += "Вот ваша <a href=\"" + chatInviteLink.InviteLink + "\">" + chatInviteLink.Name + "</a>\n"
-				msg := tgbotapi.NewMessage(requestUserChatID, respText)
+				replyText := "Привіт!\nТвої відповіді стосовно вступу в <b>F-club Kyiv</b> були оброблені нашою командою. Ознайомся з простими умовами спілкування в нашому клубі та приєднуйся до нас! \n\n1. Поважай інших учасників. Нецензурна лайка, цькування, використання непристойних стікерів - заборонено(але якщо це в тему, то всі розуміють😂)\n2. Не влаштовуємо «Барахолку»! Ти можешь запропонувати, якщо в тебе є щось корисне для автомобіля, чи будь що, але не треба про це писати кожного дня і робити рекламні оголошення. \n3. Якщо ти хочеш запропонувати свої послугу(сто, детейлінг, автомийки, итд) - повідом про це адміністрації і зробіть гарне оголошення разом - це все безкоштовно !! \n 4. Ми розуміємо, що зараз без цього ніяк, але маємо про це попросити - якомога менше суперечок стосовно політики. Ми всі підтримуємо Україну і не шукаємо зради!\n 5. Стосовно використання GIF , ми не проти цього, але не треба постити дуже багато, один за одним! \n 6. Май повагу до інших власників автомобілів, не у кожного така гарна машина, як в тебе!  \n\nМаєш бажання отримати клубний стікер на авто чи номерну рамку - відпиши на це повідомлення\U0001FAE1\n\nТримай посилання, для вступу в чат!\n     P.s.Не забудь привітатися з нових товаришами, та розповісти який в тебе автомобіль!\n\n\n\nДонати для розвитку!(За бажанням) \n\nF-Club Kyiv \n\n🎯Ціль: 100 000.00 ₴\n\n🔗Посилання на банку\nhttps://send.monobank.ua/jar/S87zLF6xL\n\n💳Номер картки банки\n5375 4112 0304 9692"
+				msg := tgbotapi.NewMessage(requestUserChatID, replyText)
 				msg.ParseMode = "HTML"
 				if _, err := bot.Send(msg); err != nil {
 					panic(err)
 				}
 
+				respText := "Ось ваше <a href=\"" + chatInviteLink.InviteLink + "\">" + chatInviteLink.Name + "</a>\n"
+				msg = tgbotapi.NewMessage(requestUserChatID, respText)
+				msg.ParseMode = "HTML"
+				if _, err := bot.Send(msg); err != nil {
+					panic(err)
+				}
 				// todo Обновляем статусы пользователя (принять в группу)
 				user.Status = StatusAccepted
 				db.Save(&user)
 
 				// Ответное сообщение администратору
 				// Вероятно нужно сюда выводить chat_id, что бы понять кого приняли в группу
-				msg = tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, "Пользователь подтвержден, ссылка на вступление в группу отправлена!")
+				msg = tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, "Користувач підтверджено, посилання на вступ до групи надіслано!")
 				if _, err := bot.Send(msg); err != nil {
 					panic(err)
 				}
 			} else if callback.Text == "reject_request" {
-
 				// todo что то придумать тут
-				respText := "Ваша заявка была отклонена, для информации свяжитесь с <a href=\"tg://user?id=6225178130\">администратором</a>."
+				respText := rejectRequestMsg
 				msg := tgbotapi.NewMessage(requestUserChatID, respText)
 				msg.ParseMode = "HTML"
 				if _, err := bot.Send(msg); err != nil {
@@ -659,7 +596,7 @@ func main() {
 
 				// Ответное сообщение администратору
 				// Вероятно нужно сюда выводить chat_id, что бы понять кого приняли в группу
-				msg = tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, "Заявка пользователя отклонена, информация отправлена!")
+				msg = tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, "Заявку користувача відхилено, інформацію надіслано!")
 				if _, err := bot.Send(msg); err != nil {
 					panic(err)
 				}
@@ -669,9 +606,6 @@ func main() {
 			if _, err := bot.Request(callback); err != nil {
 				panic(err)
 			}
-
-			// And finally, send a message containing the data received.
-
 		}
 	}
 }
