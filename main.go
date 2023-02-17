@@ -80,11 +80,11 @@ func main() {
 	wellDoneMessage := "Дякуємо, найближчим часом ви отримаєте посилання на чат. Якщо протягом тривалого часу ви не отримали посилання - зв'яжіться з адміністрацією - @fclubkyiv."
 
 	// Кнопка готов
-	var doneButton = tgbotapi.NewReplyKeyboard(
-		tgbotapi.NewKeyboardButtonRow(
-			tgbotapi.NewKeyboardButton("Готово👌"),
-		),
-	)
+	//var doneButton = tgbotapi.NewReplyKeyboard(
+	//	tgbotapi.NewKeyboardButtonRow(
+	//		tgbotapi.NewKeyboardButton("Готово👌"),
+	//	),
+	//)
 
 	// Кнопки для ответа администратора
 	var requestButtons = tgbotapi.NewInlineKeyboardMarkup(
@@ -98,9 +98,9 @@ func main() {
 	)
 
 	// Массив ИД файлов для отправки
-	var answerFileIds []string = nil
-	var isDocumentFiles = false
-	var isPhotoFiles = false
+	//var answerFileIds []string = nil
+	//var isDocumentFiles = false
+	//var isPhotoFiles = false
 
 	// test git branches
 	for update := range updates {
@@ -319,7 +319,7 @@ func main() {
 				// Задаём следующий вопрос
 				msg.Text = question5
 				// Отправляем кнопку "Готово"
-				msg.ReplyMarkup = doneButton
+				//msg.ReplyMarkup = doneButton
 				if _, err := bot.Send(msg); err != nil {
 					log.Panic(err)
 				}
@@ -328,89 +328,126 @@ func main() {
 				db.Save(&userRequest)
 				continue
 			case 5:
+				var photoID string
 				// Проверяем что бы ответ пользователя были фото
 				if update.Message.Photo != nil {
-					answerFileIds = append(answerFileIds, update.Message.Photo[1].FileID)
-					isPhotoFiles = true
-					isDocumentFiles = false
-					continue
-				} else if update.Message.Document != nil &&
-					strings.Contains(update.Message.Document.MimeType, "image") {
-					answerFileIds = append(answerFileIds, update.Message.Document.FileID)
-					isDocumentFiles = true
-					isPhotoFiles = false
-					continue
-				}
-
-				if update.Message.Text == "Готово👌" {
-					if answerFileIds == nil {
-						msg.Text = question5
-						msg.ReplyMarkup = doneButton
-						if _, err := bot.Send(msg); err != nil {
-							log.Panic(err)
-						}
-						continue
-					}
-					msg.Text = wellDoneMessage
-					msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
-					if _, err := bot.Send(msg); err != nil {
-						log.Panic(err)
-					}
-
-					// Обновляем статусы
-					userRequest.Step = 6
-					userRequest.Status = StatusWaiting
-					db.Save(&userRequest)
-					// Готово👌
-
-					// Отправка заявки админу
-					totalAnswer := "Ім'я: " + answer1 + " \n"
-					totalAnswer += "Місто: " + answer2 + " \n"
-					totalAnswer += "Авто: " + answer3 + " \n"
-					totalAnswer += "Двигун: " + answer4 + " \n"
-					totalAnswer += "ChatID: " + strconv.FormatInt(chatID, 10) + " \n"
-
-					// Отправляем текст заявки
-					// Добавляем кнопки для отправки принятия
-					msg := tgbotapi.NewMessage(OwnerAcc, totalAnswer)
-					msg.ReplyMarkup = requestButtons
-					if _, err := bot.Send(msg); err != nil {
-						log.Panic(err)
-					}
-
-					files := make([]interface{}, len(answerFileIds))
-					for i, s := range answerFileIds {
-						if isPhotoFiles {
-							files[i] = tgbotapi.NewInputMediaPhoto(tgbotapi.FileID(s))
-							continue
-						}
-
-						if isDocumentFiles {
-							files[i] = tgbotapi.NewInputMediaDocument(tgbotapi.FileID(s))
-							continue
-						}
-					}
-					cfg := tgbotapi.NewMediaGroup(
-						OwnerAcc,
-						files,
-					)
-
-					if _, err := bot.SendMediaGroup(cfg); err != nil {
-						log.Panic(err)
-					}
-
-					// todo придумать как чистить массив с файлами? Если это нужно будет? Массив не очищается после заполнения файлами
-					answerFileIds = nil
-					continue
+					//answerFileIds = append(answerFileIds, update.Message.Photo[1].FileID)
+					//isPhotoFiles = true
+					//isDocumentFiles = false
+					//continue
+					photoID = update.Message.Photo[1].FileID
 				} else {
 					// Если пришел какой-то текст кроме "готово", отправляем ещё раз вопрос о фото
 					msg.Text = question5
-					msg.ReplyMarkup = doneButton
+					//msg.ReplyMarkup = doneButton
 					if _, err := bot.Send(msg); err != nil {
 						log.Panic(err)
 					}
 					continue
 				}
+
+				msg.Text = wellDoneMessage
+				if _, err := bot.Send(msg); err != nil {
+					log.Panic(err)
+				}
+
+				userRequest.Step = 6
+				userRequest.Status = StatusWaiting
+				db.Save(&userRequest)
+
+				// Отправка заявки админу
+				totalAnswer := "Ім'я: " + answer1 + " \n"
+				totalAnswer += "Місто: " + answer2 + " \n"
+				totalAnswer += "Авто: " + answer3 + " \n"
+				totalAnswer += "Двигун: " + answer4 + " \n"
+				totalAnswer += "ChatID: " + strconv.FormatInt(chatID, 10) + " \n"
+
+				// Отправляем текст заявки
+				// Добавляем кнопки для отправки принятия
+				msg := tgbotapi.NewMessage(OwnerAcc, totalAnswer)
+				msg.ReplyMarkup = requestButtons
+				if _, err := bot.Send(msg); err != nil {
+					log.Panic(err)
+				}
+
+				sendPhoto := tgbotapi.NewPhoto(OwnerAcc, tgbotapi.FileID(photoID))
+
+				if _, err := bot.Send(sendPhoto); err != nil {
+					log.Panic(err)
+				}
+
+				//answerFileIds = nil
+				continue
+
+				//if update.Message.Text == "Готово👌" {
+				//	if answerFileIds == nil {
+				//		msg.Text = question5
+				//		msg.ReplyMarkup = doneButton
+				//		if _, err := bot.Send(msg); err != nil {
+				//			log.Panic(err)
+				//		}
+				//		continue
+				//	}
+				//	msg.Text = wellDoneMessage
+				//	msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
+				//	if _, err := bot.Send(msg); err != nil {
+				//		log.Panic(err)
+				//	}
+				//
+				//	// Обновляем статусы
+				//	userRequest.Step = 6
+				//	userRequest.Status = StatusWaiting
+				//	db.Save(&userRequest)
+				//	// Готово👌
+				//
+				//	// Отправка заявки админу
+				//	totalAnswer := "Ім'я: " + answer1 + " \n"
+				//	totalAnswer += "Місто: " + answer2 + " \n"
+				//	totalAnswer += "Авто: " + answer3 + " \n"
+				//	totalAnswer += "Двигун: " + answer4 + " \n"
+				//	totalAnswer += "ChatID: " + strconv.FormatInt(chatID, 10) + " \n"
+				//
+				//	// Отправляем текст заявки
+				//	// Добавляем кнопки для отправки принятия
+				//	msg := tgbotapi.NewMessage(OwnerAcc, totalAnswer)
+				//	msg.ReplyMarkup = requestButtons
+				//	if _, err := bot.Send(msg); err != nil {
+				//		log.Panic(err)
+				//	}
+				//
+				//	files := make([]interface{}, len(answerFileIds))
+				//	for i, s := range answerFileIds {
+				//		if isPhotoFiles {
+				//			files[i] = tgbotapi.NewInputMediaPhoto(tgbotapi.FileID(s))
+				//			continue
+				//		}
+				//
+				//		if isDocumentFiles {
+				//			files[i] = tgbotapi.NewInputMediaDocument(tgbotapi.FileID(s))
+				//			continue
+				//		}
+				//	}
+				//	cfg := tgbotapi.NewMediaGroup(
+				//		OwnerAcc,
+				//		files,
+				//	)
+				//
+				//	if _, err := bot.SendMediaGroup(cfg); err != nil {
+				//		log.Panic(err)
+				//	}
+				//
+				//	// todo придумать как чистить массив с файлами? Если это нужно будет? Массив не очищается после заполнения файлами
+				//	answerFileIds = nil
+				//	continue
+				//} else {
+				//	// Если пришел какой-то текст кроме "готово", отправляем ещё раз вопрос о фото
+				//	msg.Text = question5
+				//	msg.ReplyMarkup = doneButton
+				//	if _, err := bot.Send(msg); err != nil {
+				//		log.Panic(err)
+				//	}
+				//	continue
+				//}
 			}
 
 			//continue
