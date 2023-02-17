@@ -102,7 +102,6 @@ func main() {
 	var isDocumentFiles = false
 	var isPhotoFiles = false
 
-	// test git branches
 	for update := range updates {
 
 		if update.Message != nil { // If we got a message
@@ -123,36 +122,36 @@ func main() {
 			//}
 
 			// Проверка команда ли это?
-			//if update.Message.IsCommand() {
-			//	msg := tgbotapi.NewMessage(chatID, "")
-			//
-			//	switch update.Message.Command() {
-			//	case "restart":
-			//		msg.Text = "Удаляю пользователя с ID: " + strconv.FormatInt(chatID, 10) + "..."
-			//		if _, err := bot.Send(msg); err != nil {
-			//			log.Panic(err)
-			//		}
-			//		db.Where("chat_id = ?", chatID).Delete(&Request{})
-			//
-			//		msg.Text = "Пользователь удален. Можете попробовать заново создать заявку отправив любое сообщение в бот."
-			//		if _, err := bot.Send(msg); err != nil {
-			//			log.Panic(err)
-			//		}
-			//		continue
-			//	case "start":
-			//		// Стартовая команда которая начинает диалог
-			//		msg.Text = welcomeMsg
-			//		if _, err := bot.Send(msg); err != nil {
-			//			log.Panic(err)
-			//		}
-			//	default:
-			//		msg.Text = "Неизвестная команда"
-			//		if _, err := bot.Send(msg); err != nil {
-			//			log.Panic(err)
-			//		}
-			//		continue
-			//	}
-			//}
+			if update.Message.IsCommand() {
+				msg := tgbotapi.NewMessage(chatID, "")
+
+				switch update.Message.Command() {
+				case "start":
+					// Стартовая команда которая начинает диалог
+					msg.Text = "Привет, сейчас я проверяю "
+					if _, err := bot.Send(msg); err != nil {
+						log.Panic(err)
+					}
+				case "restart":
+					msg.Text = "Удаляю пользователя с ID: " + strconv.FormatInt(chatID, 10) + "..."
+					if _, err := bot.Send(msg); err != nil {
+						log.Panic(err)
+					}
+					db.Where("chat_id = ?", chatID).Delete(&Request{})
+
+					msg.Text = "Пользователь удален. Можете попробовать заново создать заявку отправив любое сообщение в бот."
+					if _, err := bot.Send(msg); err != nil {
+						log.Panic(err)
+					}
+					continue
+				default:
+					msg.Text = "Неизвестная команда"
+					if _, err := bot.Send(msg); err != nil {
+						log.Panic(err)
+					}
+					continue
+				}
+			}
 
 			// Проверка пользователя на существование
 			result := db.Where("chat_id = ?", chatID).First(&userRequest)
