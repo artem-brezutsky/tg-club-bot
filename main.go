@@ -51,7 +51,6 @@ func main() {
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
-
 	updates := bot.GetUpdatesChan(u)
 
 	db, err := gorm.Open(mysql.Open(DSN), &gorm.Config{})
@@ -103,6 +102,7 @@ func main() {
 	var isDocumentFiles = false
 	var isPhotoFiles = false
 
+	// test git branches
 	for update := range updates {
 
 		if update.Message != nil { // If we got a message
