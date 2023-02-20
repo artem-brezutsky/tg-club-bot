@@ -21,7 +21,10 @@ func main() {
 		panic("failed to connect database")
 	}
 
-	db.AutoMigrate(&models.User{})
+	err = db.AutoMigrate(&models.User{})
+	if err != nil {
+		return
+	}
 
 	bot, err := tgbotapi.NewBotAPI(os.Getenv("TOKEN"))
 	if err != nil {
