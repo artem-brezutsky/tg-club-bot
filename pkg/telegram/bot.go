@@ -100,6 +100,10 @@ func (b *Bot) initUpdatesChannel() tgbotapi.UpdatesChannel {
 func (b *Bot) handleUpdates(updates tgbotapi.UpdatesChannel) error {
 	for update := range updates {
 		if update.Message != nil {
+			//if update.Message.IsCommand() {
+			//	b.handleCommands(update.Message)
+			//}
+
 			b.handleMessage(update.Message)
 		} else if update.CallbackQuery != nil {
 			b.handleCallback(update.CallbackQuery)
@@ -107,6 +111,18 @@ func (b *Bot) handleUpdates(updates tgbotapi.UpdatesChannel) error {
 	}
 
 	return nil
+}
+
+// handleCommands обработка команд
+func (b *Bot) handleCommands(message *tgbotapi.Message) {
+	switch message.Command() {
+	case "start":
+		msg := tgbotapi.NewMessage(message.Chat.ID, "Hello, I'm your bot!")
+		b.bot.Send(msg)
+	default:
+		msg := tgbotapi.NewMessage(message.Chat.ID, "I don't know that command")
+		b.bot.Send(msg)
+	}
 }
 
 // handleMessage обработка сообщений
