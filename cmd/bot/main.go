@@ -13,7 +13,7 @@ import (
 
 func main() {
 	if err := godotenv.Load(); err != nil {
-		log.Print("No .env file found")
+		log.Fatal("No .env file found")
 	}
 
 	db, err := gorm.Open(mysql.Open(os.Getenv("DSN")), &gorm.Config{})
@@ -23,12 +23,12 @@ func main() {
 
 	err = db.AutoMigrate(&models.User{})
 	if err != nil {
-		return
+		log.Fatal("Не удалось выполнить миграцию: ", err)
 	}
 
 	bot, err := tgbotapi.NewBotAPI(os.Getenv("TOKEN"))
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Не удалось инициализировать Telegram Bot API: ", err)
 	}
 
 	bot.Debug = true
