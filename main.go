@@ -16,11 +16,6 @@ import (
 	"strings"
 )
 
-const StatusAccepted = 3
-const StatusDeclined = 4
-const StatusWaiting = 5
-const StatusBanned = 7
-
 const (
 	stateInitial   = 0
 	stateName      = 1
@@ -70,26 +65,13 @@ type User struct {
 	Status     int
 }
 
-// todo Сделать проверку того что отправляют в ответе, что бы текст был текстом, не стикер или эмодзи!!! Иначе возвращать на шаг назад
-// todo Сделать кнопки для админа, которые будут принимать либо отклонять заявки
-
-//// Request Сущность пользователя
-//type Request struct {
-//	Id     int
-//	ChatId int64
-//	Status int
-//	Step   int
-//}
-
 func main() {
 	if err := godotenv.Load(); err != nil {
 		log.Print("No .env file found")
 	}
 
-	//Token := os.Getenv("TOKEN")
 	adminChatId, _ := strconv.ParseInt(os.Getenv("OWNER_ACC"), 10, 64)
 	SupergroupF30Id, _ := strconv.ParseInt(os.Getenv("SUPERGROUP_F30_ID"), 10, 64)
-	//DSN := os.Getenv("DSN")
 
 	db, err := gorm.Open(mysql.Open(os.Getenv("DSN")), &gorm.Config{})
 	if err != nil {
