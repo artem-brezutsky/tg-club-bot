@@ -78,11 +78,6 @@ func main() {
 		panic("failed to connect database")
 	}
 
-	//// Create the 'users' table if it does not exist
-	//if !db.Ta(&User{}) {
-	//	db.CreateTable(&User{})
-	//}
-
 	db.AutoMigrate(&User{})
 
 	bot, err := tgbotapi.NewBotAPI(os.Getenv("TOKEN"))
@@ -96,12 +91,6 @@ func main() {
 	updateConfig.Timeout = 60
 
 	updates := bot.GetUpdatesChan(updateConfig)
-
-	// Ответы на вопросы
-	//answer1 := ""
-	//answer2 := ""
-	//answer3 := ""
-	//answer4 := ""
 
 	// todo что то сделать с этими ссылками в статичных текстах
 	userReplyPlease := "Будь ласка, дай відповідь на питання вище!"
@@ -332,7 +321,6 @@ func main() {
 						// Сбрасываем состояние пользователя
 						user.State = stateCompleted
 						user.Status = statusWaiting
-						user.Photos = nil
 						updateUser(db, user)
 					} else {
 						// Просим пользователя загрузить фото
