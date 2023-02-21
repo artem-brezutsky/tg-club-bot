@@ -127,6 +127,11 @@ func (b *Bot) handleUpdates(updates tgbotapi.UpdatesChannel) error {
 			//	b.handleCommands(update.Message)
 			//}
 
+			//if update.Message.Chat.ID == b.AdminChatID {
+			//	b.handleAdminMessage(update.Message)
+			//	return nil
+			//}
+
 			b.handleMessage(update.Message)
 		} else if update.CallbackQuery != nil {
 			b.handleCallback(update.CallbackQuery)
@@ -467,6 +472,17 @@ func (b *Bot) handleCallback(callback *tgbotapi.CallbackQuery) {
 			adminMsg.Text = "Користувач був успішно заблокованний!"
 			b.bot.Send(adminMsg)
 		}
+	}
+}
+
+func (b *Bot) handleAdminMessage(message *tgbotapi.Message) {
+	msg := tgbotapi.NewMessage(b.AdminChatID, "")
+	//msg.ReplyToMessageID = message.MessageID
+	msg.ReplyMarkup = doneButton
+
+	_, err := b.bot.Send(msg)
+	if err != nil {
+		log.Println(err)
 	}
 }
 
