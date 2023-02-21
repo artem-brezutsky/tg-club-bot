@@ -60,16 +60,38 @@ const (
 	userBannedMsg      = "Ваша заявка була заблокована, якщо виникли питання - зв'яжіться з адміністрацією. @fclubkyiv"
 )
 
+// Кнопка готово
+var doneButton = tgbotapi.NewReplyKeyboard(
+	tgbotapi.NewKeyboardButtonRow(
+		tgbotapi.NewKeyboardButton("Готово👌"),
+	),
+)
+
+// Кнопки для ответа администратора
+var requestButtons = tgbotapi.NewInlineKeyboardMarkup(
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Прийняти", "accept_request"),
+		tgbotapi.NewInlineKeyboardButtonData("Відхилити", "reject_request"),
+	),
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Заблокувати орка", "fuck_off_dog"),
+	),
+)
+
 // Bot Основная структура приложения
 type Bot struct {
-	bot *tgbotapi.BotAPI
-	db  *gorm.DB
+	bot          *tgbotapi.BotAPI
+	db           *gorm.DB
+	AdminChatID  int64
+	OwnerGroupID int64
 }
 
 func NewBot(bot *tgbotapi.BotAPI, db *gorm.DB) *Bot {
 	return &Bot{
-		bot: bot,
-		db:  db,
+		bot:          bot,
+		db:           db,
+		AdminChatID:  getAdminID(),
+		OwnerGroupID: getOwnerGroupID(),
 	}
 }
 
@@ -77,8 +99,9 @@ func NewBot(bot *tgbotapi.BotAPI, db *gorm.DB) *Bot {
 func (b *Bot) Start() error {
 	log.Printf("Авторизация в аккаунте: %s", b.bot.Self.UserName)
 
+	// Инициализируем канал обновлений
 	updates := b.initUpdatesChannel()
-	// test git branches
+	// Получаем обновления из Telegram API
 	err := b.handleUpdates(updates)
 	if err != nil {
 		log.Panic(err)
@@ -127,39 +150,11 @@ func (b *Bot) handleCommands(message *tgbotapi.Message) {
 
 // handleMessage обработка сообщений
 func (b *Bot) handleMessage(message *tgbotapi.Message) {
-	ownerGroupID, err := b.getOwnerGroupID()
-	if err != nil {
-		log.Panic(err)
-	}
-
 	// todo сделать обработку сообщений из группы
 	// Если сообщение из чата группы, пропускаем его
-	if message.Chat.ID == ownerGroupID {
+	if message.Chat.ID == b.OwnerGroupID {
 		return
 	}
-
-	adminID, err := b.getAdminID()
-	if err != nil {
-		log.Panic(err)
-	}
-
-	// Кнопка готово
-	var doneButton = tgbotapi.NewReplyKeyboard(
-		tgbotapi.NewKeyboardButtonRow(
-			tgbotapi.NewKeyboardButton("Готово👌"),
-		),
-	)
-
-	// Кнопки для ответа администратора
-	var requestButtons = tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Прийняти", "accept_request"),
-			tgbotapi.NewInlineKeyboardButtonData("Відхилити", "reject_request"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Заблокувати орка", "fuck_off_dog"),
-		),
-	)
 
 	user, err := getUser(b.db, message.Chat.ID)
 	if err != nil {
@@ -308,13 +303,13 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 					message.From.ID)
 
 				// Сообщение администратору
-				adminMsg := tgbotapi.NewMessage(adminID, adminMsgText)
+				adminMsg := tgbotapi.NewMessage(b.AdminChatID, adminMsgText)
 				adminMsg.ReplyMarkup = requestButtons
 				rq, _ := b.bot.Send(adminMsg)
 
 				// Формируем галерею с комментарием
 				files := make([]interface{}, len(user.Photos))
-				caption := fmt.Sprintf("ChatID: %d", message.Chat.ID)
+				caption := fmt.Sprintf("ChatID: <b>%d</b>", message.Chat.ID)
 				for i, s := range user.Photos {
 					if i == 0 {
 						photo := tgbotapi.InputMediaPhoto{
@@ -322,7 +317,7 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 								Type:            "photo",
 								Media:           tgbotapi.FileID(s),
 								Caption:         caption,
-								ParseMode:       "",
+								ParseMode:       parseModeHTMl,
 								CaptionEntities: nil,
 							}}
 						files[i] = photo
@@ -331,7 +326,7 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 					}
 				}
 				cfg := tgbotapi.NewMediaGroup(
-					adminID,
+					b.AdminChatID,
 					files,
 				)
 				cfg.ReplyToMessageID = rq.MessageID
@@ -351,6 +346,7 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 			} else {
 				// Просим пользователя загрузить фото
 				msg := tgbotapi.NewMessage(message.Chat.ID, askUserPhoto)
+				msg.ReplyMarkup = doneButton
 				b.bot.Send(msg)
 			}
 		}
@@ -359,15 +355,6 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 
 // handleCallback обработка калбеков
 func (b *Bot) handleCallback(callback *tgbotapi.CallbackQuery) {
-	adminID, err := b.getAdminID()
-	if err != nil {
-		log.Panic(err)
-	}
-
-	ownerGroupID, err := b.getOwnerGroupID()
-	if err != nil {
-		log.Panic(err)
-	}
 	// разбиваем сообщение на котором висят кнопки (сама заявка админа) на массив
 	s := strings.Fields(callback.Message.Text)
 
@@ -382,32 +369,32 @@ func (b *Bot) handleCallback(callback *tgbotapi.CallbackQuery) {
 		log.Panic("Ошибка получения пользователя:", err)
 	}
 
-	adminMsg := tgbotapi.NewMessage(adminID, "")
+	adminMsg := tgbotapi.NewMessage(b.AdminChatID, "")
 	switch user.Status {
 	case statusAccepted:
 		adminMsg.Text = fmt.Sprintf("Користувач був розглянутий! \n Поточний статус користувача з ID: %d - <b>Прийнято</b>.", userChatID)
 		adminMsg.ParseMode = parseModeHTMl
 		b.bot.Send(adminMsg)
-		// todo не уверен что нужно `continue`
+
 		return
 	case statusRejected:
 		adminMsg.Text = fmt.Sprintf("Користувач був розглянутий! \n Поточний статус користувача з ID: %d - <b>Відхилено</b>.", userChatID)
 		adminMsg.ParseMode = parseModeHTMl
 		b.bot.Send(adminMsg)
-		// todo не уверен что нужно `continue`
+
 		return
 	case statusBanned:
 		adminMsg.Text = fmt.Sprintf("Користувач був розглянутий! \n Поточний статус користувача з ID: %d - <b>Заблоковано</b>.", userChatID)
 		adminMsg.ParseMode = parseModeHTMl
 		b.bot.Send(adminMsg)
-		// todo не уверен что нужно `continue`
+
 		return
 	case statusWaiting:
 		// Получаем данные из колбека
 		callback := tgbotapi.NewCallback(callback.ID, callback.Data)
 		userMsg := tgbotapi.NewMessage(userChatID, "")
 		// todo переменная выше уже объявлена
-		adminMsg := tgbotapi.NewMessage(adminID, "")
+		adminMsg := tgbotapi.NewMessage(b.AdminChatID, "")
 
 		// Действия админа по отношению к заявке
 		switch callback.Text {
@@ -415,7 +402,7 @@ func (b *Bot) handleCallback(callback *tgbotapi.CallbackQuery) {
 			// Создаём конфиг для ссылки на вступление в группу
 			inviteLinkConfig := tgbotapi.CreateChatInviteLinkConfig{
 				ChatConfig: tgbotapi.ChatConfig{
-					ChatID: ownerGroupID,
+					ChatID: b.OwnerGroupID,
 				},
 				Name:               "посилання на групу",
 				ExpireDate:         0,
@@ -484,13 +471,23 @@ func (b *Bot) handleCallback(callback *tgbotapi.CallbackQuery) {
 }
 
 // getAdminID получаем ID администратора
-func (b *Bot) getAdminID() (int64, error) {
-	return strconv.ParseInt(os.Getenv("OWNER_ACC"), 10, 64)
+func getAdminID() int64 {
+	id, err := strconv.ParseInt(os.Getenv("OWNER_ACC"), 10, 64)
+	if err != nil {
+		log.Panic("Не удалось получить ID администратора")
+	}
+
+	return id
 }
 
 // getOwnerGroupID получаем ID группы в которую нужно принять пользователя
-func (b *Bot) getOwnerGroupID() (int64, error) {
-	return strconv.ParseInt(os.Getenv("SUPERGROUP_F30_ID"), 10, 64)
+func getOwnerGroupID() int64 {
+	id, err := strconv.ParseInt(os.Getenv("SUPERGROUP_F30_ID"), 10, 64)
+	if err != nil {
+		log.Panic("Не удалось получить ID закрытой группы")
+	}
+
+	return id
 }
 
 // getUser Получение пользователя из базы данных по его ChatID, если пользователя нет - создаёт его

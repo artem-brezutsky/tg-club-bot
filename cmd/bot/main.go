@@ -20,7 +20,7 @@ func main() {
 	// Подключаемся к базе данным
 	db, err := gorm.Open(mysql.Open(os.Getenv("DSN")), &gorm.Config{})
 	if err != nil {
-		panic("failed to connect database")
+		log.Fatal("failed to connect database: ", err)
 	}
 
 	// Выполняем миграции
