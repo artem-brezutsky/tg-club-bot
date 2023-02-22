@@ -46,7 +46,7 @@ const (
 	askUserCity   = "З якого ти міста?"
 	askUserCar    = "Яке в тебе авто?"
 	askUserEngine = "Який двигун?"
-	askUserPhoto  = "Надійшли фото автомобіля, щоб було видно державний номер авто - після натисни «ГОТОВО»\nЯкщо вважаєш за необхідне приховати номерний знак - це твоє право, але ми повинні розуміти, що ти з України та тобі можна довіряти."
+	askUserPhoto  = "Надійшли фото автомобіля, щоб було видно державний номер авто.\nЯкщо вважаєш за необхідне приховати номерний знак - це твоє право, але ми повинні розуміти, що ти з України та тобі можна довіряти."
 )
 
 // todo что то сделать с этими ссылками в статичных текстах
@@ -126,10 +126,12 @@ func (b *Bot) handleUpdates(updates tgbotapi.UpdatesChannel) error {
 			//if update.Message.IsCommand() {
 			//	b.handleCommands(update.Message)
 			//}
-
 			//if update.Message.Chat.ID == b.AdminChatID {
 			//	b.handleAdminMessage(update.Message)
-			//	return nil
+			//} else {
+			//	b.handleMessage(update.Message)
+			// 13416153639964394
+			// 13416153639964394
 			//}
 
 			b.handleMessage(update.Message)
@@ -181,6 +183,9 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 		msg.ParseMode = parseModeHTMl
 		b.bot.Send(msg)
 	case statusWaiting:
+		if message.Photo != nil {
+			break
+		}
 		msg := tgbotapi.NewMessage(message.Chat.ID, userWaitingMsg)
 		msg.ParseMode = parseModeHTMl
 		b.bot.Send(msg)
@@ -258,7 +263,6 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 				return
 			}
 
-			// todo в каждом сообщении нужно убирать смайлы и проверять не пустая ли строка
 			// Отправляем пользователю следующий вопрос
 			user.Engine = message.Text
 			userMsg.Text = askUserPhoto
@@ -276,22 +280,11 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 				user.Photos = append(user.Photos, photoID)
 
 				// Отправляем сообщение пользователю
-				msg := tgbotapi.NewMessage(message.Chat.ID, "Фото було успішно додано, завантаж ще, або натисни <b>Готово</b>.")
-				msg.ParseMode = parseModeHTMl
-				msg.ReplyMarkup = doneButton
+				msg := tgbotapi.NewMessage(message.Chat.ID, "Фото було успішно додано.")
 				b.bot.Send(msg)
 
 				// Обновляем пользователя в базе данных
 				updateUser(b.db, user)
-			} else if message.Text == "Готово👌" {
-				// Проверяем что бы у пользователя было загружено хоть одно фото
-				if len(user.Photos) == 0 {
-					// Если фото нет - отправляем уведомление
-					msg := tgbotapi.NewMessage(message.Chat.ID, "Ви не завантажили жодного фото!")
-					msg.ReplyMarkup = doneButton
-					b.bot.Send(msg)
-					return
-				}
 
 				// Отправляем сообщение администратору
 				adminMsgText := fmt.Sprintf(
@@ -340,18 +333,18 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 				}
 
 				// Отправляем сообщение пользователю
-				msg := tgbotapi.NewMessage(message.Chat.ID, userDoneRequestMsg)
-				msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
+				msg = tgbotapi.NewMessage(message.Chat.ID, userDoneRequestMsg)
 				b.bot.Send(msg)
 
 				// Сбрасываем состояние пользователя
 				user.State = stateCompleted
 				user.Status = statusWaiting
 				updateUser(b.db, user)
+			} else if user.Photos != nil {
+				break
 			} else {
 				// Просим пользователя загрузить фото
 				msg := tgbotapi.NewMessage(message.Chat.ID, askUserPhoto)
-				msg.ReplyMarkup = doneButton
 				b.bot.Send(msg)
 			}
 		}
@@ -475,16 +468,165 @@ func (b *Bot) handleCallback(callback *tgbotapi.CallbackQuery) {
 	}
 }
 
-func (b *Bot) handleAdminMessage(message *tgbotapi.Message) {
-	msg := tgbotapi.NewMessage(b.AdminChatID, "")
-	//msg.ReplyToMessageID = message.MessageID
-	msg.ReplyMarkup = doneButton
+//func (b *Bot) handleAdminMessage(message *tgbotapi.Message) {
+//
+//	updates, err := b.bot.GetUpdates(tgbotapi.NewUpdate(message.MessageID + 1))
+//
+//	log.Println(updates)
+//	msg := tgbotapi.NewMessage(b.AdminChatID, message.Text)
+//	msg.ReplyMarkup = doneButton
+//
+//	_, err = b.bot.Send(msg)
+//	if err != nil {
+//		log.Println(err)
+//	}
+//}
 
-	_, err := b.bot.Send(msg)
-	if err != nil {
-		log.Println(err)
-	}
-}
+//func handlePhoto(message *tgbotapi.Message, bot *tgbotapi.BotAPI) {
+//	chatID := message.Chat.ID
+//	state[chatID] = 1
+//	nextState := 5
+//	// Проверяем, есть ли у пользователя активный таймер
+//	if timer, ok := timers[chatID]; ok {
+//		// Если таймер уже был запущен, останавливаем его
+//		timer.Stop()
+//	}
+//
+//	// Запускаем новый таймер
+//	timer := time.NewTimer(time.Second * 5) // Интервал времени равен 5 секундам
+//
+//	// Сохраняем таймер для данного чата
+//	timers[chatID] = timer
+//
+//	// Обработка фотографии
+//	if message.Photo != nil && len(message.Photo) > 0 {
+//		photoID := (message.Photo)[1].FileID
+//
+//		log.Println(photoID)
+//	}
+//
+//	// Ожидание завершения таймера
+//	//<-timer.C
+//
+//	go func() {
+//		<-timer.C
+//
+//		state[chatID] = nextState
+//
+//		// Отправляем сообщение об успешной загрузке фотографий
+//		msg := tgbotapi.NewMessage(chatID, "Фотографии успешно сохранены")
+//		bot.Send(msg)
+//	}()
+
+// Проверяем, были ли получены еще фотографии в течение интервала времени таймера
+//if message.MediaGroupID == "" {
+//	// Если новых фотографий не было получено, то можно перевести пользователя в следующее состояние
+//	state[chatID] = nextState
+//
+//	// Отправляем сообщение об успешной загрузке фотографий
+//	msg := tgbotapi.NewMessage(chatID, "Фотографии успешно сохранены")
+//	bot.Send(msg)
+//}
+//}
+
+//	func (b *Bot) addPhoto(message *tgbotapi.Message, user *models.User) {
+//		for {
+//			// Получаем обновления
+//			updates, err := b.bot.GetUpdates(tgbotapi.NewUpdate(message.MessageID + 2))
+//			if err != nil {
+//				log.Println(err)
+//				continue
+//			}
+//
+//			// Проверяем наличие обновлений
+//			if len(updates) == 0 {
+//				continue
+//			}
+//
+//			// Получаем последнее обновление
+//			lastUpdate := updates[len(updates)-1]
+//
+//			// Проверяем, что это фото
+//			if lastUpdate.Message.Photo == nil {
+//				// Если это не фото, игнорируем сообщение
+//				msg := tgbotapi.NewMessage(message.Chat.ID, askUserPhoto)
+//
+//				b.bot.Send(msg)
+//				continue
+//			}
+//
+//			for _, update := range updates {
+//				if update.Message.Photo == nil {
+//					// Если это не фото, игнорируем сообщение
+//					continue
+//				}
+//				photoID := (update.Message.Photo)[1].FileID
+//				user.Photos = append(user.Photos, photoID)
+//			}
+//			// Добавляем фото в фото пользователя
+//			updateUser(b.db, user)
+//
+//			msg := tgbotapi.NewMessage(message.Chat.ID, "Фото було успішно додано.")
+//			b.bot.Send(msg)
+//			break
+//		}
+//	}
+
+//
+//func addPhoto(bot *tgbotapi.BotAPI, update tgbotapi.Update, photos map[int]string) {
+//	// Получаем ID чата
+//	chatID := update.Message.Chat.ID
+//
+//	// Получаем ID сообщения
+//	messageID := update.Message.MessageID
+//
+//	// Отправляем сообщение
+//	msg := tgbotapi.NewMessage(chatID, "Пришли фото")
+//	bot.Send(msg)
+//
+//	// Ожидаем ответа с фото
+//	for {
+//		// Получаем обновления
+//		updates, err := bot.GetUpdates(tgbotapi.NewUpdate(messageID + 1))
+//		if err != nil {
+//			log.Println(err)
+//			continue
+//		}
+//
+//		// Проверяем наличие обновлений
+//		if len(updates) == 0 {
+//			continue
+//		}
+//
+//		// Получаем последнее обновление
+//		lastUpdate := updates[len(updates)-1]
+//
+//		// Проверяем, что это фото
+//		if lastUpdate.Message.Photo == nil {
+//			// Если это не фото, игнорируем сообщение
+//			continue
+//		}
+//
+//		// Получаем ID фото
+//		photoID := lastUpdate.Message.Photo[len(lastUpdate.Message.Photo)-1].FileID
+//
+//		// Сохраняем ID фото
+//		photos[len(photos)] = photoID
+//
+//		// Удаляем кнопку "Готово" из предыдущего сообщения
+//		editMsg := tgbotapi.NewEditMessageReplyMarkup(chatID, messageID, tgbotapi.InlineKeyboardMarkup{})
+//		bot.Send(editMsg)
+//
+//		// Отправляем кнопку "Готово" с новым сообщением
+//		replyMarkup := tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Готово", "done")))
+//		msg := tgbotapi.NewMessage(chatID, "Фото добавлено\n\nЧто дальше?")
+//		msg.ReplyMarkup = replyMarkup
+//		bot.Send(msg)
+//
+//		// Завершаем ожидание
+//		break
+//	}
+//}
 
 // getAdminID получаем ID администратора
 func getAdminID() int64 {
