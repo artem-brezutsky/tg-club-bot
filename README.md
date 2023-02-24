@@ -13,3 +13,8 @@ OWNER_ACC: Admin ChatID
 SUPERGROUP_F30_ID: GroupID
 DSN: DNS string for database
 ```
+
+```
+Admin command
+/refresh {ChatID} - refresh data for user
+```
