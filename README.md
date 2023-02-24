@@ -9,8 +9,8 @@ Telegram bot for processing applications for joining a closed group
 .env configuration
 
 TOKEN: Telegram bot token
-OWNER_ACC: Admin ChatID
-SUPERGROUP_F30_ID: GroupID
+ADMIN_ID: Admin ChatID
+CLOSED_GROUP_ID: GroupID
 DSN: DNS string for database
 ```
 ---
