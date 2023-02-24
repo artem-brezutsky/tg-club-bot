@@ -1,3 +1,5 @@
+github.com/AkinAD/emoji v1.1.1 h1:UUwrK0zpQ+Xf/7ooxFhDkuTniuWwDR8JK1lt7PjCDtY=
+github.com/AkinAD/emoji v1.1.1/go.mod h1:7iovYbl/Osd7ANI9pqbD/YAg3AJ1s0tot8UXztjuKGw=
 github.com/forPelevin/gomoji v1.1.8 h1:JElzDdt0TyiUlecy6PfITDL6eGvIaxqYH1V52zrd0qQ=
 github.com/forPelevin/gomoji v1.1.8/go.mod h1:8+Z3KNGkdslmeGZBC3tCrwMrcPy5GRzAD+gL9NAwMXg=
 github.com/go-sql-driver/mysql v1.7.0 h1:ueSltNNllEqE3qcWBTD0iQd3IpL/6U+mJxLkazJ7YPc=
