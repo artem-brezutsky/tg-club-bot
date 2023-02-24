@@ -1,24 +1,23 @@
 package main
 
 import (
+	"bmwBot/pkg/config"
 	"bmwBot/pkg/telegram"
 	"bmwBot/pkg/telegram/models"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/joho/godotenv"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"log"
-	"os"
 )
 
 func main() {
-	// Подключаем файл .env
-	if err := godotenv.Load(); err != nil {
-		log.Fatal("No .env file found")
+	cfg, err := config.Init()
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	// Подключаемся к базе данным
-	db, err := gorm.Open(mysql.Open(os.Getenv("DSN")), &gorm.Config{})
+	db, err := gorm.Open(mysql.Open(cfg.DNS), &gorm.Config{})
 	if err != nil {
 		log.Fatal("failed to connect database: ", err)
 	}
@@ -30,7 +29,7 @@ func main() {
 	}
 
 	// Инициализируем Telegram Bot API
-	bot, err := tgbotapi.NewBotAPI(os.Getenv("TOKEN"))
+	bot, err := tgbotapi.NewBotAPI(cfg.TelegramToken)
 	if err != nil {
 		log.Fatal("Не удалось инициализировать Telegram Bot API: ", err)
 	}
@@ -38,7 +37,7 @@ func main() {
 	//bot.Debug = true
 
 	// Создаём новый экземпляр бота
-	telegramBot := telegram.NewBot(bot, db)
+	telegramBot := telegram.NewBot(bot, db, cfg)
 	if err := telegramBot.Start(); err != nil {
 		log.Fatal(err)
 	}
