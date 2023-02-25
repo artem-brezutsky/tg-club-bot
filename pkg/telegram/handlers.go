@@ -108,7 +108,7 @@ func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 				_ = json.Unmarshal(data, &chatInviteLink)
 
 				// отправляем приветственное сообщение пользователю
-				userMsg.Text = b.messages.UserResponses.WelcomeMsg
+				userMsg.Text = b.messages.UserResponses.InviteMsg
 				userMsg.ParseMode = parseModeHTMl
 				b.bot.Send(userMsg)
 
