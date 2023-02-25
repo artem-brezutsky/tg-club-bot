@@ -115,6 +115,10 @@ func (b *Bot) initUpdatesChannel() tgbotapi.UpdatesChannel {
 func (b *Bot) handleUpdates(updates tgbotapi.UpdatesChannel) error {
 	for update := range updates {
 		if update.Message != nil {
+			if update.Message.Chat.ID == b.closedGroupID {
+				continue
+			}
+
 			if update.Message.Chat.ID == b.adminChatID {
 				b.handleAdminMessage(update.Message)
 			} else {
