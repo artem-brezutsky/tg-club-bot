@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -16,13 +15,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s",
-		cfg.PostgresHost,
-		cfg.PostgresUser,
-		cfg.PostgresPassword,
-		cfg.PostgresDb,
-	)
+
 	// Подключаемся к базе данным
+	dsn := config.CreateDns(cfg)
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatal("failed to connect database: ", err)
