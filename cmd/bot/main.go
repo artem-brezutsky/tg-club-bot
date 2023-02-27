@@ -4,8 +4,9 @@ import (
 	"bmwBot/pkg/config"
 	"bmwBot/pkg/telegram"
 	"bmwBot/pkg/telegram/models"
+	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"log"
 )
@@ -15,9 +16,14 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s",
+		cfg.PostgresHost,
+		cfg.PostgresUser,
+		cfg.PostgresPassword,
+		cfg.PostgresDb,
+	)
 	// Подключаемся к базе данным
-	db, err := gorm.Open(mysql.Open(cfg.DNS), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatal("failed to connect database: ", err)
 	}

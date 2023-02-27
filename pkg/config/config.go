@@ -8,11 +8,14 @@ import (
 )
 
 type Config struct {
-	TelegramToken string
-	AdminID       int64
-	ClosedGroupID int64
-	DNS           string
-	Messages      Messages
+	TelegramToken    string
+	AdminID          int64
+	ClosedGroupID    int64
+	PostgresHost     string
+	PostgresUser     string
+	PostgresPassword string
+	PostgresDb       string
+	Messages         Messages
 }
 
 type Messages struct {
@@ -100,10 +103,25 @@ func fromEnv(cfg *Config) error {
 	}
 	cfg.ClosedGroupID, _ = strconv.ParseInt(viper.GetString("closed_group_id"), 10, 64)
 
-	if err := viper.BindEnv("DSN"); err != nil {
+	if err := viper.BindEnv("POSTGRES_HOST"); err != nil {
 		return err
 	}
-	cfg.DNS = viper.GetString("dsn")
+	cfg.PostgresHost = viper.GetString("POSTGRES_HOST")
+
+	if err := viper.BindEnv("POSTGRES_USER"); err != nil {
+		return err
+	}
+	cfg.PostgresUser = viper.GetString("POSTGRES_USER")
+
+	if err := viper.BindEnv("POSTGRES_PASSWORD"); err != nil {
+		return err
+	}
+	cfg.PostgresPassword = viper.GetString("POSTGRES_PASSWORD")
+
+	if err := viper.BindEnv("POSTGRES_DB"); err != nil {
+		return err
+	}
+	cfg.PostgresDb = viper.GetString("POSTGRES_DB")
 
 	return nil
 }
