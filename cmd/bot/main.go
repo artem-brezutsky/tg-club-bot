@@ -1,14 +1,14 @@
 package main
 
 import (
-	"bmwBot/pkg/config"
-	"bmwBot/pkg/telegram"
-	"bmwBot/pkg/telegram/models"
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"log"
+	"telegram_bot/pkg/config"
+	"telegram_bot/pkg/telegram"
+	"telegram_bot/pkg/telegram/models"
 )
 
 func main() {

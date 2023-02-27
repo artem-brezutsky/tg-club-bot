@@ -1,12 +1,12 @@
 package telegram
 
 import (
-	"bmwBot/pkg/config"
-	"bmwBot/pkg/telegram/models"
 	"errors"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"gorm.io/gorm"
 	"log"
+	"telegram_bot/pkg/config"
+	"telegram_bot/pkg/telegram/models"
 )
 
 const (

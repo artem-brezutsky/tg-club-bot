@@ -1,7 +1,6 @@
 package telegram
 
 import (
-	"bmwBot/pkg/telegram/models"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"telegram_bot/pkg/telegram/models"
 )
 
 // Кнопки для ответа администратора
