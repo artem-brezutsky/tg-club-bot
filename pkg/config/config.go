@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 	"log"
@@ -124,4 +125,14 @@ func fromEnv(cfg *Config) error {
 	cfg.PostgresDb = viper.GetString("POSTGRES_DB")
 
 	return nil
+}
+
+// CreateDns todo вынести куда то в интерфейс работы с базой данных
+func CreateDns(cfg *Config) string {
+	return fmt.Sprintf("host=%s user=%s password=%s dbname=%s",
+		cfg.PostgresHost,
+		cfg.PostgresUser,
+		cfg.PostgresPassword,
+		cfg.PostgresDb,
+	)
 }
