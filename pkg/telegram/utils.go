@@ -1,10 +1,10 @@
 package telegram
 
 import (
-	"bmwBot/pkg/telegram/models"
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"math/rand"
+	"telegram_bot/pkg/telegram/models"
 	"time"
 )
 
