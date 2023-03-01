@@ -2,32 +2,22 @@ package main
 
 import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"log"
 	"telegram_bot/pkg/config"
+	"telegram_bot/pkg/storage/postgres"
 	"telegram_bot/pkg/telegram"
-	"telegram_bot/pkg/telegram/models"
 )
 
 func main() {
+	// Получаем конфигурацию приложения
 	cfg, err := config.Init()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Подключаемся к базе данным
-	dsn := config.CreateDns(cfg)
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		log.Fatal("failed to connect database: ", err)
-	}
-
-	// Выполняем миграции
-	err = db.AutoMigrate(&models.User{})
-	if err != nil {
-		log.Fatal("Не удалось выполнить миграцию: ", err)
-	}
+	// Подключаемся к базе данным и создаем новый репозиторий пользователя
+	dsn := config.CreatePostgresDns(cfg)
+	userRepo := postgres.NewUserRepository(dsn)
 
 	// Инициализируем Telegram Bot API
 	bot, err := tgbotapi.NewBotAPI(cfg.TelegramToken)
@@ -35,11 +25,12 @@ func main() {
 		log.Fatal("Не удалось инициализировать Telegram Bot API: ", err)
 	}
 
-	//bot.Debug = true
+	// Отладка приложения
+	bot.Debug = cfg.Debug
 
 	// Создаём новый экземпляр бота
-	telegramBot := telegram.NewBot(bot, db, cfg)
-	if err := telegramBot.Start(); err != nil {
+	telegramBot := telegram.NewBot(bot, userRepo, cfg)
+	if err = telegramBot.Start(); err != nil {
 		log.Fatal(err)
 	}
 }

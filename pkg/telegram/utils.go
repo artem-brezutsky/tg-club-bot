@@ -4,6 +4,7 @@ import (
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"math/rand"
+	"strings"
 	"telegram_bot/pkg/telegram/models"
 	"time"
 )
@@ -45,4 +46,16 @@ func createMediaGroup(user *models.User, chatID int64, adminChatID int64) tgbota
 	)
 
 	return cfg
+}
+
+func escapeString(s string) string {
+	var escaped strings.Builder
+	for _, r := range s {
+		switch r {
+		case '_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!':
+			escaped.WriteRune('\\')
+		}
+		escaped.WriteRune(r)
+	}
+	return escaped.String()
 }
