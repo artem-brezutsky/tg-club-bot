@@ -17,6 +17,7 @@ type Config struct {
 	PostgresPassword string
 	PostgresDb       string
 	Messages         Messages
+	Debug            bool
 }
 
 type Messages struct {
@@ -33,14 +34,15 @@ type Questions struct {
 }
 
 type UserResponses struct {
-	ReplyPlease    string `mapstructure:"userReplyPlease"`
-	WelcomeMsg     string `mapstructure:"userWelcomeMsg"`
-	AlreadyDoneMsg string `mapstructure:"userAlreadyDoneMsg"`
-	WaitingMsg     string `mapstructure:"userWaitingMsg"`
-	RejectMsg      string `mapstructure:"userRejectMsg"`
-	DoneRequestMsg string `mapstructure:"userDoneRequestMsg"`
-	BannedMsg      string `mapstructure:"userBannedMsg"`
-	InviteMsg      string `mapstructure:"userInviteMsg"`
+	ReplyPlease     string `mapstructure:"userReplyPlease"`
+	WelcomeMsg      string `mapstructure:"userWelcomeMsg"`
+	AlreadyDoneMsg  string `mapstructure:"userAlreadyDoneMsg"`
+	WaitingMsg      string `mapstructure:"userWaitingMsg"`
+	RejectMsg       string `mapstructure:"userRejectMsg"`
+	DoneRequestMsg  string `mapstructure:"userDoneRequestMsg"`
+	BannedMsg       string `mapstructure:"userBannedMsg"`
+	InviteMsg       string `mapstructure:"userInviteMsg"`
+	GroupWelcomeMsg string `mapstructure:"userGroupWelcomeMsg"`
 }
 
 func Init() (*Config, error) {
@@ -124,11 +126,17 @@ func fromEnv(cfg *Config) error {
 	}
 	cfg.PostgresDb = viper.GetString("POSTGRES_DB")
 
+	if err := viper.BindEnv("TG_DEBUG"); err != nil {
+		cfg.Debug = false
+		return err
+	}
+	cfg.Debug = viper.GetBool("TG_DEBUG")
+
 	return nil
 }
 
-// CreateDns todo вынести куда то в интерфейс работы с базой данных
-func CreateDns(cfg *Config) string {
+// CreatePostgresDns todo вынести куда-то в интерфейс работы с базой данных
+func CreatePostgresDns(cfg *Config) string {
 	return fmt.Sprintf("host=%s user=%s password=%s dbname=%s",
 		cfg.PostgresHost,
 		cfg.PostgresUser,

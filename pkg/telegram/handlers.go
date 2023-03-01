@@ -32,7 +32,7 @@ var stopUploadPhotoButton = tgbotapi.NewInlineKeyboardMarkup(
 	),
 )
 
-// handleCallback обработка калбеков
+// handleCallback Обработка калбеков
 func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 	// обработка калбека от администратора
 	if callbackQuery.Message.Chat.ID == b.adminChatID {
@@ -46,7 +46,7 @@ func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 		userChatID, _ := strconv.ParseInt(strUserID, 10, 64)
 
 		// Получаем пользователя Ид которого было в заявке
-		user, err := getUser(b.db, userChatID)
+		user, err := b.userRepo.Get(userChatID)
 		if err != nil {
 			log.Panic("Ошибка получения пользователя: ", err)
 		}
@@ -54,31 +54,31 @@ func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 		adminMsg := tgbotapi.NewMessage(b.adminChatID, "")
 
 		switch user.Status {
-		case statusAccepted:
+		case models.UserStatuses.Accepted:
 			adminMsg.Text = fmt.Sprintf(
 				"Користувач був розглянутий! \n Поточний статус користувача з ID: %d - <b>%s</b>.",
-				userChatID, b.statuses[statusAccepted])
+				userChatID, b.statuses[models.UserStatuses.Accepted])
 			adminMsg.ParseMode = parseModeHTMl
 			b.bot.Send(adminMsg)
 
 			return
-		case statusRejected:
+		case models.UserStatuses.Rejected:
 			adminMsg.Text = fmt.Sprintf(
 				"Користувач був розглянутий! \n Поточний статус користувача з ID: %d - <b>%s</b>.",
-				userChatID, b.statuses[statusRejected])
+				userChatID, b.statuses[models.UserStatuses.Rejected])
 			adminMsg.ParseMode = parseModeHTMl
 			b.bot.Send(adminMsg)
 
 			return
-		case statusBanned:
+		case models.UserStatuses.Banned:
 			adminMsg.Text = fmt.Sprintf(
 				"Користувач був розглянутий! \n Поточний статус користувача з ID: %d - <b>%s</b>.",
-				userChatID, b.statuses[statusBanned])
+				userChatID, b.statuses[models.UserStatuses.Banned])
 			adminMsg.ParseMode = parseModeHTMl
 			b.bot.Send(adminMsg)
 
 			return
-		case statusWaiting:
+		case models.UserStatuses.Waiting:
 			userMsg := tgbotapi.NewMessage(userChatID, "")
 			// todo переменная выше уже объявлена
 			adminMsg = tgbotapi.NewMessage(b.adminChatID, "")
@@ -118,8 +118,8 @@ func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 				b.bot.Send(userMsg)
 
 				// todo Обновляем статусы пользователя (принять в группу)
-				user.Status = statusAccepted
-				updateUser(b.db, user)
+				user.Status = models.UserStatuses.Accepted
+				b.userRepo.Update(user)
 
 				// Ответное сообщение администратору
 				adminMsg.Text = fmt.Sprintf("Користувача з <b>ChatID: %d</b> підтверджено, посилання на вступ до групи надіслано!", userChatID)
@@ -127,8 +127,8 @@ func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 				b.bot.Send(adminMsg)
 			case callbackReject:
 				// Обновляем статус пользователя
-				user.Status = statusRejected
-				updateUser(b.db, user)
+				user.Status = models.UserStatuses.Rejected
+				b.userRepo.Update(user)
 
 				// Отравляем уведомление пользователю
 				userMsg.Text = b.messages.UserResponses.RejectMsg
@@ -141,8 +141,8 @@ func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 				b.bot.Send(adminMsg)
 			case callbackBanned:
 				// Обновляем статус пользователя
-				user.Status = statusBanned
-				updateUser(b.db, user)
+				user.Status = models.UserStatuses.Banned
+				b.userRepo.Update(user)
 
 				// Отравляем уведомление пользователю
 				userMsg.Text = b.messages.UserResponses.BannedMsg
@@ -164,15 +164,10 @@ func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 			// todo придумать как убрать кнопку готово после нажатия и успешной отправки заявки
 
 			chatID := callbackQuery.Message.Chat.ID
-			var user models.User
-			// todo надо переделать
-			if err := b.db.Where("telegram_id = ?", chatID).First(&user).Error; err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					log.Panic("Пользователь не найден")
-				}
-			}
 
-			if user.State == stateCompleted {
+			user, _ := b.userRepo.Get(chatID)
+
+			if user.State == models.UserStates.Completed {
 				answerCallback := tgbotapi.NewCallback(callbackQuery.ID, "Заявку вже було відправлено!")
 				if _, err := b.bot.Request(answerCallback); err != nil {
 					panic(err)
@@ -193,14 +188,14 @@ func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 				user.City,
 				user.Car,
 				user.Engine,
-				user.TelegramID)
+				user.ChatID)
 
 			// Сообщение администратору
 			adminMsg := tgbotapi.NewMessage(b.adminChatID, adminMsgText)
 			adminMsg.ReplyMarkup = requestButtons
 			rq, _ := b.bot.Send(adminMsg)
 
-			mgc := createMediaGroup(&user, chatID, b.adminChatID)
+			mgc := createMediaGroup(user, chatID, b.adminChatID)
 			mgc.ReplyToMessageID = rq.MessageID
 			if _, err := b.bot.SendMediaGroup(mgc); err != nil {
 				log.Panic(err)
@@ -211,12 +206,12 @@ func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 			b.bot.Send(msg)
 
 			// Сбрасываем состояние пользователя
-			user.State = stateCompleted
-			user.Status = statusWaiting
-			updateUser(b.db, &user)
+			user.State = models.UserStates.Completed
+			user.Status = models.UserStatuses.Waiting
+			b.userRepo.Update(user)
 
 			// Удаляем MessageID пользователя, который отправил заявку
-			delete(lastBotMessageIDInChat, chatID)
+			delete(b.lastMessageID, chatID)
 
 			return
 		default:
@@ -232,7 +227,7 @@ func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 	}
 }
 
-// handleCommands обработка команд
+// handleCommands Обработка команд
 func (b *Bot) handleCommands(message *tgbotapi.Message) {
 	switch message.Command() {
 	case "start":
@@ -244,7 +239,7 @@ func (b *Bot) handleCommands(message *tgbotapi.Message) {
 	}
 }
 
-// handleMessage обработка сообщений
+// handleMessage Обработка сообщений
 func (b *Bot) handleMessage(message *tgbotapi.Message) {
 	// ID текущего чата/пользователя
 	chatID := message.Chat.ID
@@ -255,9 +250,13 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 		b.handleMessageFromGroup(message)
 	}
 
-	user, err := getUser(b.db, chatID)
+	user, err := b.userRepo.Get(chatID)
 	if err != nil {
-		log.Panic("Ошибка получения пользователя: ", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			user = b.userRepo.Create(chatID)
+		} else {
+			log.Fatalln("Не корректная работа с базой данных.", err)
+		}
 	}
 
 	userReplyMsg := tgbotapi.NewMessage(chatID, "")
@@ -265,34 +264,34 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 
 	// Проверяем статус пользователя
 	switch user.Status {
-	case statusAccepted:
+	case models.UserStatuses.Accepted:
 		userReplyMsg.Text = b.messages.UserResponses.AlreadyDoneMsg
 		b.bot.Send(userReplyMsg)
 
 		return
-	case statusRejected:
+	case models.UserStatuses.Rejected:
 		userReplyMsg.Text = b.messages.UserResponses.RejectMsg
 		b.bot.Send(userReplyMsg)
 
 		return
-	case statusBanned:
+	case models.UserStatuses.Banned:
 		userReplyMsg.Text = b.messages.UserResponses.BannedMsg
 		b.bot.Send(userReplyMsg)
 
 		return
-	case statusWaiting:
+	case models.UserStatuses.Waiting:
 		userReplyMsg.Text = b.messages.UserResponses.WaitingMsg
 		b.bot.Send(userReplyMsg)
 
 		return
-	case statusNew:
+	case models.UserStatuses.New:
 		// Очищаем ввод пользователя от emoji
 		message.Text = gomoji.RemoveEmojis(message.Text)
 
 		// Если после очистки от emoji сообщение стало пустым, просим заново ввести ответ
 		// Если это не фото для состояния с ожиданием фото
 		// todo переделать
-		if message.Text == "" && user.State != statePhoto {
+		if message.Text == "" && user.State != models.UserStates.Photo {
 			userReplyMsg.Text = b.messages.UserResponses.ReplyPlease
 			b.bot.Send(userReplyMsg)
 
@@ -301,7 +300,7 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 
 		// todo нужно проверять обновился ли пользователь и если что возвращать ошибку
 		switch user.State {
-		case stateInitial:
+		case models.UserStates.Initial:
 			// todo нужно переделать
 			// Отправляем приветственное сообщение
 			userReplyMsg.Text = b.messages.UserResponses.WelcomeMsg
@@ -311,60 +310,61 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 			userReplyMsg.Text = b.messages.Questions.UserName
 			b.bot.Send(userReplyMsg)
 			// Изменяем состояние пользователя и сохраняем данные
-			user.State = stateName
-			updateUser(b.db, user)
+			user.State = models.UserStates.Name
+			b.userRepo.Update(user)
 
 			return
-		case stateName:
+		case models.UserStates.Name:
 			// Записываем введенный ответ на предыдущий вопрос от пользователя и обновляем состояние
 			user.Name = message.Text
-			user.State = stateCity
+			user.State = models.UserStates.City
 			// Сохраняем данные пользователя
-			updateUser(b.db, user)
+			b.userRepo.Update(user)
 
 			// Отправляем следующий вопрос пользователю
 			userReplyMsg.Text = b.messages.Questions.UserCity
 			b.bot.Send(userReplyMsg)
 
 			return
-		case stateCity:
+		case models.UserStates.City:
 			// Записываем введенный ответ на предыдущий вопрос от пользователя и обновляем состояние
 			user.City = message.Text
-			user.State = stateCar
+			user.State = models.UserStates.Car
 			// Сохраняем данные пользователя
-			updateUser(b.db, user)
+			b.userRepo.Update(user)
 
 			// Отправляем пользователю следующий вопрос
 			userReplyMsg.Text = b.messages.Questions.UserCar
 			b.bot.Send(userReplyMsg)
 
 			return
-		case stateCar:
+		case models.UserStates.Car:
 			// Записываем введенный ответ на предыдущий вопрос от пользователя и обновляем состояние
 			user.Car = message.Text
-			user.State = stateEngine
+			user.State = models.UserStates.Engine
 			// Сохраняем данные пользователя
-			updateUser(b.db, user)
+			b.userRepo.Update(user)
 
 			// Отправляем пользователю следующий вопрос
 			userReplyMsg.Text = b.messages.Questions.UserEngine
 			b.bot.Send(userReplyMsg)
 
 			return
-		case stateEngine:
+		case models.UserStates.Engine:
 			// Записываем введенный ответ на предыдущий вопрос от пользователя и обновляем состояние
 			user.Engine = message.Text
-			user.State = statePhoto
+			user.State = models.UserStates.Photo
 			// Сохраняем данные пользователя
-			updateUser(b.db, user)
+			b.userRepo.Update(user)
 
 			// Отправляем пользователю следующий вопрос
 			userReplyMsg.Text = b.messages.Questions.UserPhoto
 			b.bot.Send(userReplyMsg)
 
 			return
-		case statePhoto:
+		case models.UserStates.Photo:
 			if message.Photo != nil && len(message.Photo) > 0 {
+				// todo отправляет несколько кнопок готово если кол-во фото большое иногда
 				b.handlePhoto(message, user)
 			} else {
 				// Если пришло текстовое сообщение смотрим есть ли загруженные у пользователя фото
@@ -372,7 +372,7 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 				if len(user.Photos) > 0 {
 					// todo подумать над этим
 					// Удаляем сообщение с кнопкой которое было при загрузке фото
-					delM := tgbotapi.NewDeleteMessage(message.Chat.ID, lastBotMessageIDInChat[message.Chat.ID])
+					delM := tgbotapi.NewDeleteMessage(message.Chat.ID, b.lastMessageID[message.Chat.ID])
 					b.bot.Send(delM)
 
 					// Отправляем новое сообщение с кнопкой
@@ -382,7 +382,7 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 					newMsg, _ := b.bot.Send(m)
 
 					// Запоминаем ИД сообщения с кнопкой "готово"
-					lastBotMessageIDInChat[message.Chat.ID] = newMsg.MessageID
+					b.lastMessageID[message.Chat.ID] = newMsg.MessageID
 					return
 				}
 				// Просим пользователя загрузить фото если у него ещё нет загруженных фото
@@ -395,7 +395,7 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 	}
 }
 
-// Обработка фотографий
+// handlePhoto Обработка фотографий
 func (b *Bot) handlePhoto(message *tgbotapi.Message, user *models.User) {
 	// ID чата/пользователя
 	chatID := message.Chat.ID
@@ -408,16 +408,16 @@ func (b *Bot) handlePhoto(message *tgbotapi.Message, user *models.User) {
 		// Добавляем fileID в фото пользователя
 		user.Photos = append(user.Photos, photoID)
 		// сохраняем фото
-		updateUser(b.db, user)
+		b.userRepo.Update(user)
 	} else {
 		rdDots := getRandomDots()
 		txt := fmt.Sprintf("Ви успішно завантажили %d фото.\nНатисніть \"Готово\"%s", len(user.Photos), rdDots)
-		m := tgbotapi.NewEditMessageText(chatID, lastBotMessageIDInChat[chatID], txt)
+		m := tgbotapi.NewEditMessageText(chatID, b.lastMessageID[chatID], txt)
 		m.ReplyMarkup = &stopUploadPhotoButton
 
 		newMessage, err := b.bot.Send(m)
 		if err == nil {
-			lastBotMessageIDInChat[chatID] = newMessage.MessageID
+			b.lastMessageID[chatID] = newMessage.MessageID
 			return
 		}
 	}
@@ -425,18 +425,18 @@ func (b *Bot) handlePhoto(message *tgbotapi.Message, user *models.User) {
 	// сообщение пользователю об успешной загрузке фото
 	txt := fmt.Sprintf("Ви успішно завантажили %d фото.\nНатисніть \"Готово\".", len(user.Photos))
 
-	if lastBotMessageIDInChat[chatID] != 0 && messageID < lastBotMessageIDInChat[chatID] {
-		m := tgbotapi.NewEditMessageText(chatID, lastBotMessageIDInChat[chatID], txt)
+	if b.lastMessageID[chatID] != 0 && messageID < b.lastMessageID[chatID] {
+		m := tgbotapi.NewEditMessageText(chatID, b.lastMessageID[chatID], txt)
 		m.ReplyMarkup = &stopUploadPhotoButton
 
 		newMessage, err := b.bot.Send(m)
 		if err == nil {
-			lastBotMessageIDInChat[chatID] = newMessage.MessageID
+			b.lastMessageID[chatID] = newMessage.MessageID
 
 			return
 		}
-	} else if lastBotMessageIDInChat[chatID] != 0 && messageID > lastBotMessageIDInChat[chatID] {
-		m := tgbotapi.NewDeleteMessage(chatID, lastBotMessageIDInChat[chatID])
+	} else if b.lastMessageID[chatID] != 0 && messageID > b.lastMessageID[chatID] {
+		m := tgbotapi.NewDeleteMessage(chatID, b.lastMessageID[chatID])
 		b.bot.Send(m)
 	}
 
@@ -448,7 +448,7 @@ func (b *Bot) handlePhoto(message *tgbotapi.Message, user *models.User) {
 		return
 	}
 
-	lastBotMessageIDInChat[chatID] = newMessage.MessageID
+	b.lastMessageID[chatID] = newMessage.MessageID
 	return
 }
 
@@ -469,24 +469,30 @@ func (b *Bot) handleAdminMessage(message *tgbotapi.Message) {
 				}
 				// Получаем ChatID из переданного параметра
 				chatID, _ := strconv.ParseInt(match[0], 10, 64)
-				// Находим пользователя
-				var user models.User
-				if err := b.db.Where("telegram_id = ?", chatID).First(&user).Error; err != nil {
-					if errors.Is(err, gorm.ErrRecordNotFound) {
-						adminMsg := tgbotapi.NewMessage(b.adminChatID, fmt.Sprintf("Користувача з <b>ID: %d</b> не існує в базі!", chatID))
-						adminMsg.ParseMode = parseModeHTMl
-						b.bot.Send(adminMsg)
 
-						return
-					}
-				}
-				user.State = stateInitial
-				user.Status = statusNew
-				user.Photos = nil
-				updateUser(b.db, &user)
-
-				adminMsg := tgbotapi.NewMessage(b.adminChatID, fmt.Sprintf("Користувача з <b>ID: %d</b> було оновлено", chatID))
+				adminMsg := tgbotapi.NewMessage(b.adminChatID, "")
 				adminMsg.ParseMode = parseModeHTMl
+
+				// todo сделать обработку ошибок, что бы вероятно отправлялись админу или мне?
+				// Находим пользователя
+				user, err := b.userRepo.Get(chatID)
+				if err != nil {
+					if errors.Is(err, gorm.ErrRecordNotFound) {
+						adminMsg.Text = fmt.Sprintf("Користувача з <b>ID: %d</b> не існує в базі!", chatID)
+					} else {
+						adminMsg.Text = "Сталася помилка!"
+					}
+
+					b.bot.Send(adminMsg)
+					return
+				}
+
+				user.State = models.UserStates.Initial
+				user.Status = models.UserStatuses.New
+				user.Photos = nil
+				b.userRepo.Update(user)
+
+				adminMsg.Text = fmt.Sprintf("Користувача з <b>ID: %d</b> було оновлено", chatID)
 				b.bot.Send(adminMsg)
 
 				return
@@ -507,5 +513,37 @@ func (b *Bot) handleAdminMessage(message *tgbotapi.Message) {
 
 // handleMessageFromGroup Обработка сообщений из группы
 func (b *Bot) handleMessageFromGroup(message *tgbotapi.Message) {
+	if message.NewChatMembers != nil {
+		for _, newMember := range message.NewChatMembers {
+			var replyName string
+			switch {
+			case newMember.UserName != "":
+				replyName = newMember.UserName
+				break
+			case newMember.FirstName != "" && newMember.FirstName != "ㅤ":
+				// Имя может быть с символом пустоты ;)
+				replyName = newMember.FirstName
+				break
+			case newMember.LastName != "":
+				replyName = newMember.LastName
+				break
+			default:
+				replyName = "Водій BMW:\\)"
+			}
+
+			// todo возможно стоит переделать под ParseMode=HTML, что бы лучше контролировать содержимое
+			mention := fmt.Sprintf("[%v](tg://user?id=%v)", escapeString(replyName), strconv.FormatInt(newMember.ID, 10))
+			msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf(b.messages.GroupWelcomeMsg, mention))
+			msg.ParseMode = "MarkdownV2"
+			b.bot.Send(msg)
+
+			return
+		}
+	} else if message.LeftChatMember != nil {
+		// todo реализация отправки сообщения когда пользователь покинул группу
+		return
+	}
+
+	// todo возможная реализация обработки всех сообщений в группе
 	return
 }
