@@ -37,6 +37,7 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 	// ID текущего чата/пользователя
 	chatID := message.Chat.ID
 
+	// Получаем пользователя из базы, если его нет то создаём
 	user, err := b.userRepo.Get(chatID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -222,7 +223,6 @@ func (b *Bot) handlePhoto(message *tgbotapi.Message, user *models.User) {
 		// сохраняем фото
 		b.userRepo.Update(user)
 	} else {
-
 		if b.lastMessage[chatID].MessageID != 0 && messageID > b.lastMessage[chatID].MessageID {
 			m := tgbotapi.NewDeleteMessage(chatID, b.lastMessage[chatID].MessageID)
 			b.bot.Send(m)
@@ -251,7 +251,6 @@ func (b *Bot) handlePhoto(message *tgbotapi.Message, user *models.User) {
 		}
 
 		return
-		// todo если сообщение удалено пользователем к примеру, то его нельзя редактировать и тут будет ошибка
 	}
 
 	// сообщение пользователю об успешной загрузке фото
@@ -292,7 +291,7 @@ func (b *Bot) handlePhoto(message *tgbotapi.Message, user *models.User) {
 // handleCallback Обработка калбеков
 func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 	// обработка калбека от администратора
-	if callbackQuery.Message.Chat.ID == b.adminChatID {
+	if callbackQuery.Message.Chat.ID == b.invitedGroupID {
 		// разбиваем сообщение на котором висят кнопки (сама заявка админа) на массив
 		s := strings.Fields(callbackQuery.Message.Text)
 		// В нашем случае последний элемент массива будет chat_id (string)
@@ -308,7 +307,7 @@ func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 			log.Panic("Ошибка получения пользователя: ", err)
 		}
 		// Создаём новое сообщение для админа с пустым текстом
-		adminMsg := tgbotapi.NewMessage(b.adminChatID, "")
+		adminMsg := tgbotapi.NewMessage(b.invitedGroupID, "")
 
 		switch user.Status {
 		case models.UserStatuses.Accepted:
@@ -338,7 +337,7 @@ func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 		case models.UserStatuses.Waiting:
 			userMsg := tgbotapi.NewMessage(userChatID, "")
 			// todo переменная выше уже объявлена
-			adminMsg = tgbotapi.NewMessage(b.adminChatID, "")
+			adminMsg = tgbotapi.NewMessage(b.invitedGroupID, "")
 
 			// Действия админа по отношению к заявке
 			switch callbackQuery.Data {
@@ -419,8 +418,10 @@ func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 			// завершаем работу и отправляем админу заявку
 			chatID := callbackQuery.Message.Chat.ID
 
+			// Получаем пользователя из базы данных
 			user, _ := b.userRepo.Get(chatID)
 
+			// Проверяем состояние пользователя, что бы не обрабатывать повторные нажатия на кнопки
 			if user.State == models.UserStates.Completed {
 				answerCallback := tgbotapi.NewCallback(callbackQuery.ID, "Заявку вже було відправлено!")
 				if _, err := b.bot.Request(answerCallback); err != nil {
@@ -445,12 +446,12 @@ func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 				user.ChatID)
 
 			// Сообщение администратору
-			adminMsg := tgbotapi.NewMessage(b.adminChatID, adminMsgText)
+			adminMsg := tgbotapi.NewMessage(b.invitedGroupID, adminMsgText)
 			adminMsg.ReplyMarkup = requestButtons
 			rq, _ := b.bot.Send(adminMsg)
 
 			// Создаем медиа группу для отправки админу
-			mgc := createMediaGroup(user, chatID, b.adminChatID)
+			mgc := createMediaGroup(user, chatID, b.invitedGroupID)
 			mgc.ReplyToMessageID = rq.MessageID
 			if _, err := b.bot.SendMediaGroup(mgc); err != nil {
 				log.Panic(err)
@@ -591,5 +592,15 @@ func (b *Bot) handleMessageFromGroup(message *tgbotapi.Message) {
 	}
 
 	// todo возможная реализация обработки всех сообщений в группе
+	return
+}
+
+// handleMessageFromInvitedGroup обработка сообщений из группы с заявками
+func (b *Bot) handleMessageFromInvitedGroup(message *tgbotapi.Message) {
+	return
+}
+
+// handleMessageFromNotificationGroup обработка сообщений из группы с заявками
+func (b *Bot) handleMessageFromNotificationGroup(message *tgbotapi.Message) {
 	return
 }
