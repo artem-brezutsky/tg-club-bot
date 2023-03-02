@@ -23,8 +23,13 @@ type Bot struct {
 	adminChatID   int64
 	closedGroupID int64
 	messages      config.Messages
-	lastMessageID map[int64]int
+	lastMessage   map[int64]LastMessage
 	statuses      map[int]string
+}
+
+type LastMessage struct {
+	MessageID int
+	Text      string
 }
 
 func NewBot(bot *tgbotapi.BotAPI, userRepo storage.UserRepository, cfg *config.Config) *Bot {
@@ -34,7 +39,7 @@ func NewBot(bot *tgbotapi.BotAPI, userRepo storage.UserRepository, cfg *config.C
 		adminChatID:   cfg.AdminID,
 		closedGroupID: cfg.ClosedGroupID,
 		messages:      cfg.Messages,
-		lastMessageID: make(map[int64]int),
+		lastMessage:   make(map[int64]LastMessage),
 		// todo что-то с этим придумать
 		statuses: map[int]string{
 			models.UserStatuses.New:      "Новий",

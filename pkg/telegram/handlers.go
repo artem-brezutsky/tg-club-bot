@@ -32,6 +32,263 @@ var stopUploadPhotoButton = tgbotapi.NewInlineKeyboardMarkup(
 	),
 )
 
+// handleMessage Обработка сообщений
+func (b *Bot) handleMessage(message *tgbotapi.Message) {
+	// ID текущего чата/пользователя
+	chatID := message.Chat.ID
+
+	user, err := b.userRepo.Get(chatID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			user = b.userRepo.Create(chatID)
+		} else {
+			log.Fatalln("Не корректная работа с базой данных.", err)
+		}
+	}
+
+	userReplyMsg := tgbotapi.NewMessage(chatID, "")
+	userReplyMsg.ParseMode = parseModeHTMl
+
+	// Проверяем статус пользователя
+	switch user.Status {
+	case models.UserStatuses.Accepted:
+		userReplyMsg.Text = b.messages.UserResponses.AlreadyDoneMsg
+		b.bot.Send(userReplyMsg)
+
+		return
+	case models.UserStatuses.Rejected:
+		userReplyMsg.Text = b.messages.UserResponses.RejectMsg
+		b.bot.Send(userReplyMsg)
+
+		return
+	case models.UserStatuses.Banned:
+		userReplyMsg.Text = b.messages.UserResponses.BannedMsg
+		b.bot.Send(userReplyMsg)
+
+		return
+	case models.UserStatuses.Waiting:
+		userReplyMsg.Text = b.messages.UserResponses.WaitingMsg
+		b.bot.Send(userReplyMsg)
+
+		return
+	case models.UserStatuses.New:
+		// Очищаем ввод пользователя от emoji
+		message.Text = gomoji.RemoveEmojis(message.Text)
+
+		// Если после очистки от emoji сообщение стало пустым, просим заново ввести ответ
+		// Если это не фото для состояния с ожиданием фото
+		// todo переделать
+		if message.Text == "" && user.State != models.UserStates.Photo {
+
+			if b.lastMessage[chatID].MessageID != 0 && message.MessageID < b.lastMessage[chatID].MessageID {
+				editedMessageText := getRandomDots(b.lastMessage[chatID].Text)
+				m := tgbotapi.NewEditMessageText(chatID, b.lastMessage[chatID].MessageID, editedMessageText)
+				newMessage, _ := b.bot.Send(m)
+				if err == nil {
+					b.lastMessage[chatID] = LastMessage{
+						MessageID: newMessage.MessageID,
+						Text:      editedMessageText,
+					}
+
+					return
+				}
+			} else if b.lastMessage[chatID].MessageID != 0 && message.MessageID > b.lastMessage[chatID].MessageID {
+				m := tgbotapi.NewDeleteMessage(chatID, b.lastMessage[chatID].MessageID)
+				b.bot.Send(m)
+			}
+			userReplyMsg.Text = b.messages.UserResponses.ReplyPlease
+			replMsg, _ := b.bot.Send(userReplyMsg)
+
+			b.lastMessage[chatID] = LastMessage{
+				MessageID: replMsg.MessageID,
+				Text:      b.messages.UserResponses.ReplyPlease,
+			}
+
+			return
+		}
+
+		// todo нужно проверять обновился ли пользователь и если что возвращать ошибку
+		switch user.State {
+		case models.UserStates.Initial:
+			// todo нужно переделать
+			// Отправляем приветственное сообщение
+			userReplyMsg.Text = b.messages.UserResponses.WelcomeMsg
+			b.bot.Send(userReplyMsg)
+
+			// Отправляем первый вопрос
+			userReplyMsg.Text = b.messages.Questions.UserName
+			b.bot.Send(userReplyMsg)
+			// Изменяем состояние пользователя и сохраняем данные
+			user.State = models.UserStates.Name
+			b.userRepo.Update(user)
+
+			return
+		case models.UserStates.Name:
+			// Записываем введенный ответ на предыдущий вопрос от пользователя и обновляем состояние
+			user.Name = message.Text
+			user.State = models.UserStates.City
+			// Сохраняем данные пользователя
+			b.userRepo.Update(user)
+
+			// Отправляем следующий вопрос пользователю
+			userReplyMsg.Text = b.messages.Questions.UserCity
+			b.bot.Send(userReplyMsg)
+
+			return
+		case models.UserStates.City:
+			// Записываем введенный ответ на предыдущий вопрос от пользователя и обновляем состояние
+			user.City = message.Text
+			user.State = models.UserStates.Car
+			// Сохраняем данные пользователя
+			b.userRepo.Update(user)
+
+			// Отправляем пользователю следующий вопрос
+			userReplyMsg.Text = b.messages.Questions.UserCar
+			b.bot.Send(userReplyMsg)
+
+			return
+		case models.UserStates.Car:
+			// Записываем введенный ответ на предыдущий вопрос от пользователя и обновляем состояние
+			user.Car = message.Text
+			user.State = models.UserStates.Engine
+			// Сохраняем данные пользователя
+			b.userRepo.Update(user)
+
+			// Отправляем пользователю следующий вопрос
+			userReplyMsg.Text = b.messages.Questions.UserEngine
+			b.bot.Send(userReplyMsg)
+
+			return
+		case models.UserStates.Engine:
+			// Записываем введенный ответ на предыдущий вопрос от пользователя и обновляем состояние
+			user.Engine = message.Text
+			user.State = models.UserStates.Photo
+			// Сохраняем данные пользователя
+			b.userRepo.Update(user)
+
+			// Отправляем пользователю следующий вопрос
+			userReplyMsg.Text = b.messages.Questions.UserPhoto
+			b.bot.Send(userReplyMsg)
+
+			return
+		case models.UserStates.Photo:
+			if message.Photo != nil && len(message.Photo) > 0 {
+				// todo отправляет несколько кнопок готово если кол-во фото большое иногда
+				b.handlePhoto(message, user)
+			} else {
+				// Если пришло текстовое сообщение смотрим есть ли загруженные у пользователя фото
+				// Если есть, просим нажать готово, или загрузить ещё
+				if len(user.Photos) > 0 {
+					// todo подумать над этим
+					// Удаляем сообщение с кнопкой которое было при загрузке фото
+					delM := tgbotapi.NewDeleteMessage(message.Chat.ID, b.lastMessage[message.Chat.ID].MessageID)
+					b.bot.Send(delM)
+
+					// Отправляем новое сообщение с кнопкой
+					txt := fmt.Sprintf("Ви успішно завантажили %d фото. Натисніть \"Готово\".", len(user.Photos))
+					m := tgbotapi.NewMessage(message.Chat.ID, txt)
+					m.ReplyMarkup = &stopUploadPhotoButton
+					newMsg, _ := b.bot.Send(m)
+
+					// Запоминаем ИД сообщения с кнопкой "готово"
+					b.lastMessage[message.Chat.ID] = LastMessage{
+						MessageID: newMsg.MessageID,
+						Text:      txt,
+					}
+					return
+				}
+				// Просим пользователя загрузить фото если у него ещё нет загруженных фото
+				msg := tgbotapi.NewMessage(message.Chat.ID, b.messages.Questions.UserPhoto)
+				b.bot.Send(msg)
+
+				return
+			}
+		}
+	}
+}
+
+// handlePhoto Обработка фотографий
+func (b *Bot) handlePhoto(message *tgbotapi.Message, user *models.User) {
+	// ID чата/пользователя
+	chatID := message.Chat.ID
+	// ID текущего сообщения
+	messageID := message.MessageID
+
+	if len(user.Photos) < maxUploadPhoto {
+		// получаем fileID фото с лучшим качеством
+		photoID := (message.Photo)[len(message.Photo)-1].FileID
+		// Добавляем fileID в фото пользователя
+		user.Photos = append(user.Photos, photoID)
+		// сохраняем фото
+		b.userRepo.Update(user)
+	} else {
+
+		if b.lastMessage[chatID].MessageID != 0 && messageID > b.lastMessage[chatID].MessageID {
+			m := tgbotapi.NewDeleteMessage(chatID, b.lastMessage[chatID].MessageID)
+			b.bot.Send(m)
+		}
+
+		txt := getRandomDots(b.lastMessage[chatID].Text)
+		m := tgbotapi.NewEditMessageText(chatID, b.lastMessage[chatID].MessageID, txt)
+		m.ReplyMarkup = &stopUploadPhotoButton
+
+		newMessage, err := b.bot.Send(m)
+		if err != nil {
+			m := tgbotapi.NewMessage(chatID, txt)
+			m.ReplyMarkup = &stopUploadPhotoButton
+			newMessage, err = b.bot.Send(m)
+			b.lastMessage[chatID] = LastMessage{
+				MessageID: newMessage.MessageID,
+				Text:      txt,
+			}
+
+			return
+
+		}
+		b.lastMessage[chatID] = LastMessage{
+			MessageID: newMessage.MessageID,
+			Text:      txt,
+		}
+
+		return
+		// todo если сообщение удалено пользователем к примеру, то его нельзя редактировать и тут будет ошибка
+	}
+
+	// сообщение пользователю об успешной загрузке фото
+	txt := fmt.Sprintf("Ви успішно завантажили %d фото.\nНатисніть \"Готово\".", len(user.Photos))
+	if b.lastMessage[chatID].MessageID != 0 && messageID < b.lastMessage[chatID].MessageID {
+		m := tgbotapi.NewEditMessageText(chatID, b.lastMessage[chatID].MessageID, txt)
+		m.ReplyMarkup = &stopUploadPhotoButton
+
+		newMessage, err := b.bot.Send(m)
+		if err == nil {
+			b.lastMessage[chatID] = LastMessage{
+				MessageID: newMessage.MessageID,
+				Text:      txt,
+			}
+
+			return
+		}
+	} else if b.lastMessage[chatID].MessageID != 0 && messageID > b.lastMessage[chatID].MessageID {
+		m := tgbotapi.NewDeleteMessage(chatID, b.lastMessage[chatID].MessageID)
+		b.bot.Send(m)
+	}
+
+	m := tgbotapi.NewMessage(chatID, txt)
+	m.ReplyMarkup = &stopUploadPhotoButton
+
+	newMessage, err := b.bot.Send(m)
+	if err != nil {
+		return
+	}
+
+	b.lastMessage[chatID] = LastMessage{
+		MessageID: newMessage.MessageID,
+		Text:      txt,
+	}
+	return
+}
+
 // handleCallback Обработка калбеков
 func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 	// обработка калбека от администратора
@@ -160,9 +417,6 @@ func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 		switch callbackQuery.Data {
 		case "upload_done":
 			// завершаем работу и отправляем админу заявку
-			// todo ограничить кол-во фото которые можно загрузить
-			// todo придумать как убрать кнопку готово после нажатия и успешной отправки заявки
-
 			chatID := callbackQuery.Message.Chat.ID
 
 			user, _ := b.userRepo.Get(chatID)
@@ -178,12 +432,12 @@ func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 
 			// Отправляем сообщение администратору
 			adminMsgText := fmt.Sprintf(
-				"Новая заявка от пользователя. Данные:\n\n"+
-					"Имя: %s\n"+
-					"Город: %s\n"+
-					"Автомобиль: %s\n"+
-					"Двигатель: %s\n"+
-					"ChatID: %d",
+				"Нова заявка на вступ:\n\n"+
+					"Ім'я: %s\n"+
+					"Місто: %s\n"+
+					"Автомобіль: %s\n"+
+					"Двигун: %s\n"+
+					"ChatID: %d\n",
 				user.Name,
 				user.City,
 				user.Car,
@@ -195,6 +449,7 @@ func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 			adminMsg.ReplyMarkup = requestButtons
 			rq, _ := b.bot.Send(adminMsg)
 
+			// Создаем медиа группу для отправки админу
 			mgc := createMediaGroup(user, chatID, b.adminChatID)
 			mgc.ReplyToMessageID = rq.MessageID
 			if _, err := b.bot.SendMediaGroup(mgc); err != nil {
@@ -205,13 +460,17 @@ func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 			msg := tgbotapi.NewMessage(chatID, b.messages.UserResponses.DoneRequestMsg)
 			b.bot.Send(msg)
 
+			// Удаляем сообщение с кнопкой "готово"
+			delMsg := tgbotapi.NewDeleteMessage(chatID, b.lastMessage[chatID].MessageID)
+			b.bot.Send(delMsg)
+
 			// Сбрасываем состояние пользователя
 			user.State = models.UserStates.Completed
 			user.Status = models.UserStatuses.Waiting
 			b.userRepo.Update(user)
 
 			// Удаляем MessageID пользователя, который отправил заявку
-			delete(b.lastMessageID, chatID)
+			delete(b.lastMessage, chatID)
 
 			return
 		default:
@@ -237,219 +496,6 @@ func (b *Bot) handleCommands(message *tgbotapi.Message) {
 		msg := tgbotapi.NewMessage(message.Chat.ID, "I don't know that command")
 		b.bot.Send(msg)
 	}
-}
-
-// handleMessage Обработка сообщений
-func (b *Bot) handleMessage(message *tgbotapi.Message) {
-	// ID текущего чата/пользователя
-	chatID := message.Chat.ID
-
-	// todo сделать обработку сообщений из группы
-	// Если сообщение из чата группы, пропускаем его
-	if chatID == b.closedGroupID {
-		b.handleMessageFromGroup(message)
-	}
-
-	user, err := b.userRepo.Get(chatID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			user = b.userRepo.Create(chatID)
-		} else {
-			log.Fatalln("Не корректная работа с базой данных.", err)
-		}
-	}
-
-	userReplyMsg := tgbotapi.NewMessage(chatID, "")
-	userReplyMsg.ParseMode = parseModeHTMl
-
-	// Проверяем статус пользователя
-	switch user.Status {
-	case models.UserStatuses.Accepted:
-		userReplyMsg.Text = b.messages.UserResponses.AlreadyDoneMsg
-		b.bot.Send(userReplyMsg)
-
-		return
-	case models.UserStatuses.Rejected:
-		userReplyMsg.Text = b.messages.UserResponses.RejectMsg
-		b.bot.Send(userReplyMsg)
-
-		return
-	case models.UserStatuses.Banned:
-		userReplyMsg.Text = b.messages.UserResponses.BannedMsg
-		b.bot.Send(userReplyMsg)
-
-		return
-	case models.UserStatuses.Waiting:
-		userReplyMsg.Text = b.messages.UserResponses.WaitingMsg
-		b.bot.Send(userReplyMsg)
-
-		return
-	case models.UserStatuses.New:
-		// Очищаем ввод пользователя от emoji
-		message.Text = gomoji.RemoveEmojis(message.Text)
-
-		// Если после очистки от emoji сообщение стало пустым, просим заново ввести ответ
-		// Если это не фото для состояния с ожиданием фото
-		// todo переделать
-		if message.Text == "" && user.State != models.UserStates.Photo {
-			userReplyMsg.Text = b.messages.UserResponses.ReplyPlease
-			b.bot.Send(userReplyMsg)
-
-			return
-		}
-
-		// todo нужно проверять обновился ли пользователь и если что возвращать ошибку
-		switch user.State {
-		case models.UserStates.Initial:
-			// todo нужно переделать
-			// Отправляем приветственное сообщение
-			userReplyMsg.Text = b.messages.UserResponses.WelcomeMsg
-			b.bot.Send(userReplyMsg)
-
-			// Отправляем первый вопрос
-			userReplyMsg.Text = b.messages.Questions.UserName
-			b.bot.Send(userReplyMsg)
-			// Изменяем состояние пользователя и сохраняем данные
-			user.State = models.UserStates.Name
-			b.userRepo.Update(user)
-
-			return
-		case models.UserStates.Name:
-			// Записываем введенный ответ на предыдущий вопрос от пользователя и обновляем состояние
-			user.Name = message.Text
-			user.State = models.UserStates.City
-			// Сохраняем данные пользователя
-			b.userRepo.Update(user)
-
-			// Отправляем следующий вопрос пользователю
-			userReplyMsg.Text = b.messages.Questions.UserCity
-			b.bot.Send(userReplyMsg)
-
-			return
-		case models.UserStates.City:
-			// Записываем введенный ответ на предыдущий вопрос от пользователя и обновляем состояние
-			user.City = message.Text
-			user.State = models.UserStates.Car
-			// Сохраняем данные пользователя
-			b.userRepo.Update(user)
-
-			// Отправляем пользователю следующий вопрос
-			userReplyMsg.Text = b.messages.Questions.UserCar
-			b.bot.Send(userReplyMsg)
-
-			return
-		case models.UserStates.Car:
-			// Записываем введенный ответ на предыдущий вопрос от пользователя и обновляем состояние
-			user.Car = message.Text
-			user.State = models.UserStates.Engine
-			// Сохраняем данные пользователя
-			b.userRepo.Update(user)
-
-			// Отправляем пользователю следующий вопрос
-			userReplyMsg.Text = b.messages.Questions.UserEngine
-			b.bot.Send(userReplyMsg)
-
-			return
-		case models.UserStates.Engine:
-			// Записываем введенный ответ на предыдущий вопрос от пользователя и обновляем состояние
-			user.Engine = message.Text
-			user.State = models.UserStates.Photo
-			// Сохраняем данные пользователя
-			b.userRepo.Update(user)
-
-			// Отправляем пользователю следующий вопрос
-			userReplyMsg.Text = b.messages.Questions.UserPhoto
-			b.bot.Send(userReplyMsg)
-
-			return
-		case models.UserStates.Photo:
-			if message.Photo != nil && len(message.Photo) > 0 {
-				// todo отправляет несколько кнопок готово если кол-во фото большое иногда
-				b.handlePhoto(message, user)
-			} else {
-				// Если пришло текстовое сообщение смотрим есть ли загруженные у пользователя фото
-				// Если есть, просим нажать готово, или загрузить ещё
-				if len(user.Photos) > 0 {
-					// todo подумать над этим
-					// Удаляем сообщение с кнопкой которое было при загрузке фото
-					delM := tgbotapi.NewDeleteMessage(message.Chat.ID, b.lastMessageID[message.Chat.ID])
-					b.bot.Send(delM)
-
-					// Отправляем новое сообщение с кнопкой
-					txt := fmt.Sprintf("Ви успішно завантажили %d фото. Натисніть \"Готово\".", len(user.Photos))
-					m := tgbotapi.NewMessage(message.Chat.ID, txt)
-					m.ReplyMarkup = &stopUploadPhotoButton
-					newMsg, _ := b.bot.Send(m)
-
-					// Запоминаем ИД сообщения с кнопкой "готово"
-					b.lastMessageID[message.Chat.ID] = newMsg.MessageID
-					return
-				}
-				// Просим пользователя загрузить фото если у него ещё нет загруженных фото
-				msg := tgbotapi.NewMessage(message.Chat.ID, b.messages.Questions.UserPhoto)
-				b.bot.Send(msg)
-
-				return
-			}
-		}
-	}
-}
-
-// handlePhoto Обработка фотографий
-func (b *Bot) handlePhoto(message *tgbotapi.Message, user *models.User) {
-	// ID чата/пользователя
-	chatID := message.Chat.ID
-	// ID текущего сообщения
-	messageID := message.MessageID
-	// получаем fileID фото с лучшим качеством
-	photoID := (message.Photo)[len(message.Photo)-1].FileID
-
-	if len(user.Photos) < maxUploadPhoto {
-		// Добавляем fileID в фото пользователя
-		user.Photos = append(user.Photos, photoID)
-		// сохраняем фото
-		b.userRepo.Update(user)
-	} else {
-		rdDots := getRandomDots()
-		txt := fmt.Sprintf("Ви успішно завантажили %d фото.\nНатисніть \"Готово\"%s", len(user.Photos), rdDots)
-		m := tgbotapi.NewEditMessageText(chatID, b.lastMessageID[chatID], txt)
-		m.ReplyMarkup = &stopUploadPhotoButton
-
-		newMessage, err := b.bot.Send(m)
-		if err == nil {
-			b.lastMessageID[chatID] = newMessage.MessageID
-			return
-		}
-	}
-
-	// сообщение пользователю об успешной загрузке фото
-	txt := fmt.Sprintf("Ви успішно завантажили %d фото.\nНатисніть \"Готово\".", len(user.Photos))
-
-	if b.lastMessageID[chatID] != 0 && messageID < b.lastMessageID[chatID] {
-		m := tgbotapi.NewEditMessageText(chatID, b.lastMessageID[chatID], txt)
-		m.ReplyMarkup = &stopUploadPhotoButton
-
-		newMessage, err := b.bot.Send(m)
-		if err == nil {
-			b.lastMessageID[chatID] = newMessage.MessageID
-
-			return
-		}
-	} else if b.lastMessageID[chatID] != 0 && messageID > b.lastMessageID[chatID] {
-		m := tgbotapi.NewDeleteMessage(chatID, b.lastMessageID[chatID])
-		b.bot.Send(m)
-	}
-
-	m := tgbotapi.NewMessage(chatID, txt)
-	m.ReplyMarkup = &stopUploadPhotoButton
-
-	newMessage, err := b.bot.Send(m)
-	if err != nil {
-		return
-	}
-
-	b.lastMessageID[chatID] = newMessage.MessageID
-	return
 }
 
 // todo переделать
