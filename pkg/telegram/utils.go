@@ -3,24 +3,27 @@ package telegram
 import (
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"math/rand"
 	"strings"
 	"telegram_bot/pkg/telegram/models"
-	"time"
 )
 
 // getRandomDots получаем случайное количество точек для изменения сообщения
-func getRandomDots() string {
-	dots := []string{
-		".",
-		"..",
-		"...",
-	}
-	rand.Seed(time.Now().Unix())
+func getRandomDots(str string) string {
 
-	return dots[rand.Intn(len(dots))]
+	count := strings.Count(str, ".")
+	switch count {
+	case 1:
+		return str + "."
+	case 2:
+		return str + "."
+	case 3:
+		return strings.TrimRight(str, ".")
+	default:
+		return str + "."
+	}
 }
 
+// createMediaGroup Формируем медиа группу из фото пользователя
 func createMediaGroup(user *models.User, chatID int64, adminChatID int64) tgbotapi.MediaGroupConfig {
 	// Формируем галерею с комментарием
 	files := make([]interface{}, len(user.Photos))
@@ -48,6 +51,7 @@ func createMediaGroup(user *models.User, chatID int64, adminChatID int64) tgbota
 	return cfg
 }
 
+// escapeString Удаляем из никнейма пользователя запрещенные символи
 func escapeString(s string) string {
 	var escaped strings.Builder
 	for _, r := range s {
