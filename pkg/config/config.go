@@ -9,15 +9,17 @@ import (
 )
 
 type Config struct {
-	TelegramToken    string
-	AdminID          int64
-	ClosedGroupID    int64
-	PostgresHost     string
-	PostgresUser     string
-	PostgresPassword string
-	PostgresDb       string
-	Messages         Messages
-	Debug            bool
+	TelegramToken       string
+	AdminID             int64
+	ClosedGroupID       int64
+	PostgresHost        string
+	PostgresUser        string
+	PostgresPassword    string
+	PostgresDb          string
+	Messages            Messages
+	Debug               bool
+	InvitesGroupID      int64
+	NotificationGroupID int64
 }
 
 type Messages struct {
@@ -131,6 +133,16 @@ func fromEnv(cfg *Config) error {
 		return err
 	}
 	cfg.Debug = viper.GetBool("TG_DEBUG")
+
+	if err := viper.BindEnv("INVITES_GROUP_ID"); err != nil {
+		return err
+	}
+	cfg.InvitesGroupID, _ = strconv.ParseInt(viper.GetString("invites_group_id"), 10, 64)
+
+	if err := viper.BindEnv("NOTIFICATION_GROUP_ID"); err != nil {
+		return err
+	}
+	cfg.NotificationGroupID, _ = strconv.ParseInt(viper.GetString("notification_group_id"), 10, 64)
 
 	return nil
 }

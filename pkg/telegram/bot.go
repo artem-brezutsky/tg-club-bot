@@ -18,13 +18,15 @@ const (
 
 // Bot Основная структура приложения
 type Bot struct {
-	bot           *tgbotapi.BotAPI
-	userRepo      storage.UserRepository
-	adminChatID   int64
-	closedGroupID int64
-	messages      config.Messages
-	lastMessage   map[int64]LastMessage
-	statuses      map[int]string
+	bot                 *tgbotapi.BotAPI
+	userRepo            storage.UserRepository
+	adminChatID         int64
+	closedGroupID       int64
+	invitedGroupID      int64
+	notificationGroupID int64
+	messages            config.Messages
+	lastMessage         map[int64]LastMessage
+	statuses            map[int]string
 }
 
 type LastMessage struct {
@@ -34,12 +36,14 @@ type LastMessage struct {
 
 func NewBot(bot *tgbotapi.BotAPI, userRepo storage.UserRepository, cfg *config.Config) *Bot {
 	return &Bot{
-		bot:           bot,
-		userRepo:      userRepo,
-		adminChatID:   cfg.AdminID,
-		closedGroupID: cfg.ClosedGroupID,
-		messages:      cfg.Messages,
-		lastMessage:   make(map[int64]LastMessage),
+		bot:                 bot,
+		userRepo:            userRepo,
+		adminChatID:         cfg.AdminID,
+		closedGroupID:       cfg.ClosedGroupID,
+		invitedGroupID:      cfg.InvitesGroupID,
+		notificationGroupID: cfg.NotificationGroupID,
+		messages:            cfg.Messages,
+		lastMessage:         make(map[int64]LastMessage),
 		// todo что-то с этим придумать
 		statuses: map[int]string{
 			models.UserStatuses.New:      "Новий",
@@ -81,6 +85,14 @@ func (b *Bot) handleUpdates(updates tgbotapi.UpdatesChannel) error {
 			switch update.Message.Chat.ID {
 			case b.closedGroupID:
 				b.handleMessageFromGroup(update.Message)
+				break
+			case b.invitedGroupID:
+				// todo Игнорируем пока что сообщения из группы с приглашениями
+				b.handleMessageFromInvitedGroup(update.Message)
+				break
+			case b.notificationGroupID:
+				// todo Игнорируем пока что сообщения из группы с уведомлениями
+				b.handleMessageFromNotificationGroup(update.Message)
 				break
 			case b.adminChatID:
 				b.handleAdminMessage(update.Message)
