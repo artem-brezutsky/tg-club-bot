@@ -4,17 +4,17 @@
 build:
 	go build -o ./.bin/bot cmd/bot/main.go
 
-run: build run-dc-db
+run: build
 	./.bin/bot
 
 build-image:
 	docker-compose build
 
-run-dc:
+run-dc: build-image
 	docker-compose up -d
 
 stop-dc:
-	docker-compose up -d
+	docker-compose down
 
 run-dc-db:
 	docker-compose up db -d
