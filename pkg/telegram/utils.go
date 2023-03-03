@@ -3,7 +3,6 @@ package telegram
 import (
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"strconv"
 	"strings"
 	"telegram_bot/pkg/telegram/models"
 )
@@ -81,9 +80,4 @@ func escapeString(s string) string {
 		escaped.WriteRune(r)
 	}
 	return escaped.String()
-}
-
-func addLinkToUser(userID int64) string {
-	userLink := fmt.Sprintf("<a href=\"tg://user?id=%s\">%s</a>", strconv.FormatInt(userID, 10), "User Link Text")
-	return userLink
 }
