@@ -47,28 +47,32 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 		}
 	}
 
+	// todo Переделать
+	user.UserName = message.From.UserName
+	b.userRepo.Update(user)
+
 	userReplyMsg := tgbotapi.NewMessage(chatID, "")
 	userReplyMsg.ParseMode = parseModeHTMl
 
 	// Проверяем статус пользователя
 	switch user.Status {
 	case models.UserStatuses.Accepted:
-		userReplyMsg.Text = b.messages.UserResponses.AlreadyDoneMsg
+		userReplyMsg.Text = fmt.Sprintf(b.messages.UserResponses.AlreadyDoneMsg, b.adminUserName)
 		b.bot.Send(userReplyMsg)
 
 		return
 	case models.UserStatuses.Rejected:
-		userReplyMsg.Text = b.messages.UserResponses.RejectMsg
+		userReplyMsg.Text = fmt.Sprintf(b.messages.UserResponses.RejectMsg, b.adminUserName)
 		b.bot.Send(userReplyMsg)
 
 		return
 	case models.UserStatuses.Banned:
-		userReplyMsg.Text = b.messages.UserResponses.BannedMsg
+		userReplyMsg.Text = fmt.Sprintf(b.messages.UserResponses.BannedMsg, b.adminUserName)
 		b.bot.Send(userReplyMsg)
 
 		return
 	case models.UserStatuses.Waiting:
-		userReplyMsg.Text = b.messages.UserResponses.WaitingMsg
+		userReplyMsg.Text = fmt.Sprintf(b.messages.UserResponses.WaitingMsg, b.adminUserName)
 		b.bot.Send(userReplyMsg)
 
 		return
@@ -98,6 +102,7 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 				b.bot.Send(m)
 			}
 			userReplyMsg.Text = b.messages.UserResponses.ReplyPlease
+			userReplyMsg.ParseMode = parseModeHTMl
 			replMsg, _ := b.bot.Send(userReplyMsg)
 
 			b.lastMessage[chatID] = LastMessage{
@@ -117,11 +122,23 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 			b.bot.Send(userReplyMsg)
 
 			// Отправляем первый вопрос
-			userReplyMsg.Text = b.messages.Questions.UserName
+			userReplyMsg.Text = b.messages.Questions.HearAbout
 			b.bot.Send(userReplyMsg)
 			// Изменяем состояние пользователя и сохраняем данные
-			user.State = models.UserStates.Name
+			user.State = models.UserStates.HearAbout
 			b.userRepo.Update(user)
+
+			return
+		case models.UserStates.HearAbout:
+			// Записываем введенный ответ на предыдущий вопрос от пользователя и обновляем состояние
+			user.HearAbout = message.Text
+			user.State = models.UserStates.Name
+			// Сохраняем данные пользователя
+			b.userRepo.Update(user)
+
+			// Отправляем следующий вопрос пользователю
+			userReplyMsg.Text = b.messages.Questions.UserName
+			b.bot.Send(userReplyMsg)
 
 			return
 		case models.UserStates.Name:
@@ -431,21 +448,10 @@ func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 				return
 			}
 
-			// Отправляем сообщение администратору
-			adminMsgText := fmt.Sprintf(
-				"Нова заявка на вступ:\n\n"+
-					"Ім'я: %s\n"+
-					"Місто: %s\n"+
-					"Автомобіль: %s\n"+
-					"Двигун: %s\n"+
-					"ChatID: %d\n",
-				user.Name,
-				user.City,
-				user.Car,
-				user.Engine,
-				user.ChatID)
+			// Формируем сообщение
+			adminMsgText := b.buildUserDataMessage(user)
 
-			// Сообщение администратору
+			// Отправляем сообщение администратору
 			adminMsg := tgbotapi.NewMessage(b.invitedGroupID, adminMsgText)
 			adminMsg.ReplyMarkup = requestButtons
 			rq, _ := b.bot.Send(adminMsg)
@@ -458,7 +464,7 @@ func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 			}
 
 			// Отправляем сообщение пользователю
-			msg := tgbotapi.NewMessage(chatID, b.messages.UserResponses.DoneRequestMsg)
+			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf(b.messages.UserResponses.DoneRequestMsg, b.adminUserName))
 			b.bot.Send(msg)
 
 			// Удаляем сообщение с кнопкой "готово"
@@ -499,7 +505,7 @@ func (b *Bot) handleCommands(message *tgbotapi.Message) {
 	}
 }
 
-// todo переделать
+// todo Переделать
 // handleAdminMessage Обработка сообщений от администратора
 func (b *Bot) handleAdminMessage(message *tgbotapi.Message) {
 	if message.IsCommand() {

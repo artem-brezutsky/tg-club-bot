@@ -9,6 +9,7 @@ import (
 
 const (
 	stateInitial = iota
+	stateHearAbout
 	stateName
 	stateCity
 	stateCar
@@ -30,15 +31,16 @@ type StringArray []string
 // User Модель пользователя
 type User struct {
 	gorm.Model
-	ChatID   int64 `gorm:"unique_index"`
-	UserName string
-	Name     string
-	City     string
-	Car      string
-	Engine   string
-	Photos   StringArray `gorm:"type:json"`
-	State    int
-	Status   int
+	ChatID    int64 `gorm:"unique_index"`
+	UserName  string
+	HearAbout string
+	Name      string
+	City      string
+	Car       string
+	Engine    string
+	Photos    StringArray `gorm:"type:json"`
+	State     int
+	Status    int
 }
 
 func (a StringArray) Value() (driver.Value, error) {
@@ -73,17 +75,19 @@ var UserStatuses = statuses{
 
 type states struct {
 	Initial   int // user.state=0
-	Name      int // user.state=1
-	City      int // user.state=2
-	Car       int // user.state=3
-	Engine    int // user.state=4
-	Photo     int // user.state=5
-	Completed int // user.state=6
+	HearAbout int // user.state=1
+	Name      int // user.state=2
+	City      int // user.state=3
+	Car       int // user.state=4
+	Engine    int // user.state=5
+	Photo     int // user.state=6
+	Completed int // user.state=7
 }
 
 // UserStates Состояния пользователя
 var UserStates = states{
 	Initial:   stateInitial,
+	HearAbout: stateHearAbout,
 	Name:      stateName,
 	City:      stateCity,
 	Car:       stateCar,

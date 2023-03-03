@@ -11,6 +11,7 @@ import (
 type Config struct {
 	TelegramToken       string
 	AdminID             int64
+	AdminUserName       string
 	ClosedGroupID       int64
 	PostgresHost        string
 	PostgresUser        string
@@ -29,6 +30,7 @@ type Messages struct {
 
 type Questions struct {
 	UserName   string `mapstructure:"askUserName"`
+	HearAbout  string `mapstructure:"askHearAbout"`
 	UserCity   string `mapstructure:"askUserCity"`
 	UserCar    string `mapstructure:"askUserCar"`
 	UserEngine string `mapstructure:"askUserEngine"`
@@ -143,6 +145,11 @@ func fromEnv(cfg *Config) error {
 		return err
 	}
 	cfg.NotificationGroupID, _ = strconv.ParseInt(viper.GetString("notification_group_id"), 10, 64)
+
+	if err := viper.BindEnv("ADMIN_USERNAME"); err != nil {
+		return err
+	}
+	cfg.AdminUserName = viper.GetString("ADMIN_USERNAME")
 
 	return nil
 }

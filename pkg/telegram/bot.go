@@ -21,6 +21,7 @@ type Bot struct {
 	bot                 *tgbotapi.BotAPI
 	userRepo            storage.UserRepository
 	adminChatID         int64
+	adminUserName       string
 	closedGroupID       int64
 	invitedGroupID      int64
 	notificationGroupID int64
@@ -39,6 +40,7 @@ func NewBot(bot *tgbotapi.BotAPI, userRepo storage.UserRepository, cfg *config.C
 		bot:                 bot,
 		userRepo:            userRepo,
 		adminChatID:         cfg.AdminID,
+		adminUserName:       cfg.AdminUserName,
 		closedGroupID:       cfg.ClosedGroupID,
 		invitedGroupID:      cfg.InvitesGroupID,
 		notificationGroupID: cfg.NotificationGroupID,

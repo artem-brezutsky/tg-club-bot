@@ -3,6 +3,7 @@ package telegram
 import (
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"strconv"
 	"strings"
 	"telegram_bot/pkg/telegram/models"
 )
@@ -51,6 +52,24 @@ func createMediaGroup(user *models.User, chatID int64, adminChatID int64) tgbota
 	return cfg
 }
 
+// buildUserDataMessage Формируем сообщение с данными пользователя
+func (b *Bot) buildUserDataMessage(user *models.User) string {
+	return fmt.Sprintf(
+		"Нова заявка на вступ:\n\n"+
+			"Ім'я: %s\n"+
+			"Місто: %s\n"+
+			"Автомобіль: %s\n"+
+			"Двигун: %s\n"+
+			"Дізнались з: %s\n"+
+			"ChatID: %d\n",
+		user.Name,
+		user.City,
+		user.Car,
+		user.Engine,
+		user.HearAbout,
+		user.ChatID)
+}
+
 // escapeString Удаляем из никнейма пользователя запрещенные символи
 func escapeString(s string) string {
 	var escaped strings.Builder
@@ -62,4 +81,9 @@ func escapeString(s string) string {
 		escaped.WriteRune(r)
 	}
 	return escaped.String()
+}
+
+func addLinkToUser(userID int64) string {
+	userLink := fmt.Sprintf("<a href=\"tg://user?id=%s\">%s</a>", strconv.FormatInt(userID, 10), "User Link Text")
+	return userLink
 }
