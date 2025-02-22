@@ -3,6 +3,7 @@ package main
 import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"log"
+	"os"
 	"telegram_bot/pkg/config"
 	"telegram_bot/pkg/storage/postgres"
 	"telegram_bot/pkg/telegram"
@@ -16,7 +17,12 @@ func main() {
 	}
 
 	// Подключаемся к базе данным и создаем новый репозиторий пользователя
-	dsn := config.CreatePostgresDns(cfg)
+	dsn := os.Getenv("DATABASE_URL")
+
+	if dsn == "" {
+		log.Fatal("DATABASE_URL environment variable is not set")
+	}
+
 	userRepo := postgres.NewUserRepository(dsn)
 
 	// Инициализируем Telegram Bot API

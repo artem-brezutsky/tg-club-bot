@@ -1,10 +1,7 @@
 package config
 
 import (
-	"fmt"
-	"github.com/joho/godotenv"
-	"github.com/spf13/viper"
-	"log"
+	"os"
 	"strconv"
 )
 
@@ -50,116 +47,24 @@ type UserResponses struct {
 }
 
 func Init() (*Config, error) {
-	// Подключаем файл .env
-	if err := godotenv.Load(); err != nil {
-		log.Fatal("No .env file found")
-	}
-
-	if err := setUpViper(); err != nil {
-		return nil, err
-	}
+	// Для Railway не нужен файл .env
+	//if err := godotenv.Load(); err != nil {
+	//	fmt.Println("No .env file found or error loading .env file")
+	//}
 
 	var cfg Config
-	if err := unmarshal(&cfg); err != nil {
-		return nil, err
-	}
 
-	if err := fromEnv(&cfg); err != nil {
-		return nil, err
-	}
+	cfg.TelegramToken = os.Getenv("TELEGRAM_BOT_TOKEN")
+	cfg.AdminID, _ = strconv.ParseInt(os.Getenv("ADMIN_ID"), 10, 64)
+	cfg.ClosedGroupID, _ = strconv.ParseInt(os.Getenv("CLOSED_GROUP_ID"), 10, 64)
+	cfg.PostgresHost = os.Getenv("POSTGRES_HOST")
+	cfg.PostgresUser = os.Getenv("POSTGRES_USER")
+	cfg.PostgresPassword = os.Getenv("POSTGRES_PASSWORD")
+	cfg.PostgresDb = os.Getenv("POSTGRES_DB")
+	cfg.Debug, _ = strconv.ParseBool(os.Getenv("TG_DEBUG"))
+	cfg.InvitesGroupID, _ = strconv.ParseInt(os.Getenv("INVITES_GROUP_ID"), 10, 64)
+	cfg.NotificationGroupID, _ = strconv.ParseInt(os.Getenv("NOTIFICATION_GROUP_ID"), 10, 64)
+	cfg.AdminUserName = os.Getenv("ADMIN_USERNAME")
 
 	return &cfg, nil
-}
-
-func setUpViper() error {
-	viper.AddConfigPath("configs")
-	viper.SetConfigName("main")
-
-	return viper.ReadInConfig()
-}
-
-func unmarshal(cfg *Config) error {
-	if err := viper.Unmarshal(&cfg); err != nil {
-		return err
-	}
-
-	if err := viper.UnmarshalKey("messages.questions", &cfg.Messages.Questions); err != nil {
-		return err
-	}
-
-	if err := viper.UnmarshalKey("messages.user_responses", &cfg.Messages.UserResponses); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func fromEnv(cfg *Config) error {
-	if err := viper.BindEnv("TOKEN"); err != nil {
-		return err
-	}
-	cfg.TelegramToken = viper.GetString("token")
-
-	if err := viper.BindEnv("ADMIN_ID"); err != nil {
-		return err
-	}
-	cfg.AdminID, _ = strconv.ParseInt(viper.GetString("admin_id"), 10, 64)
-
-	if err := viper.BindEnv("CLOSED_GROUP_ID"); err != nil {
-		return err
-	}
-	cfg.ClosedGroupID, _ = strconv.ParseInt(viper.GetString("closed_group_id"), 10, 64)
-
-	if err := viper.BindEnv("POSTGRES_HOST"); err != nil {
-		return err
-	}
-	cfg.PostgresHost = viper.GetString("POSTGRES_HOST")
-
-	if err := viper.BindEnv("POSTGRES_USER"); err != nil {
-		return err
-	}
-	cfg.PostgresUser = viper.GetString("POSTGRES_USER")
-
-	if err := viper.BindEnv("POSTGRES_PASSWORD"); err != nil {
-		return err
-	}
-	cfg.PostgresPassword = viper.GetString("POSTGRES_PASSWORD")
-
-	if err := viper.BindEnv("POSTGRES_DB"); err != nil {
-		return err
-	}
-	cfg.PostgresDb = viper.GetString("POSTGRES_DB")
-
-	if err := viper.BindEnv("TG_DEBUG"); err != nil {
-		cfg.Debug = false
-		return err
-	}
-	cfg.Debug = viper.GetBool("TG_DEBUG")
-
-	if err := viper.BindEnv("INVITES_GROUP_ID"); err != nil {
-		return err
-	}
-	cfg.InvitesGroupID, _ = strconv.ParseInt(viper.GetString("invites_group_id"), 10, 64)
-
-	if err := viper.BindEnv("NOTIFICATION_GROUP_ID"); err != nil {
-		return err
-	}
-	cfg.NotificationGroupID, _ = strconv.ParseInt(viper.GetString("notification_group_id"), 10, 64)
-
-	if err := viper.BindEnv("ADMIN_USERNAME"); err != nil {
-		return err
-	}
-	cfg.AdminUserName = viper.GetString("ADMIN_USERNAME")
-
-	return nil
-}
-
-// CreatePostgresDns todo вынести куда-то в интерфейс работы с базой данных
-func CreatePostgresDns(cfg *Config) string {
-	return fmt.Sprintf("host=%s user=%s password=%s dbname=%s",
-		cfg.PostgresHost,
-		cfg.PostgresUser,
-		cfg.PostgresPassword,
-		cfg.PostgresDb,
-	)
 }
