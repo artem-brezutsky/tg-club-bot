@@ -12,7 +12,6 @@ FROM alpine:latest
 
 WORKDIR /root/
 
-#COPY --from=builer /telegram_bot/.env .
 COPY --from=builer /telegram_bot/.bin/bot .
 COPY --from=builer /telegram_bot/configs configs/
 
