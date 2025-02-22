@@ -404,7 +404,7 @@ func (b *Bot) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 				b.userRepo.Update(user)
 
 				// Отравляем уведомление пользователю
-				userMsg.Text = b.messages.UserResponses.RejectMsg
+				userMsg.Text = fmt.Sprintf(b.messages.UserResponses.RejectMsg, b.adminUserName)
 				userMsg.ParseMode = parseModeHTMl
 				b.bot.Send(userMsg)
 
