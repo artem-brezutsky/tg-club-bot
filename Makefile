@@ -15,6 +15,3 @@ run-dc: build-image
 
 stop-dc:
 	docker-compose down
-
-run-dc-db:
-	docker-compose up db -d
