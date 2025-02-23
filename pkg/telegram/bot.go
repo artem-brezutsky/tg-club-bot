@@ -80,7 +80,7 @@ func (b *Bot) initUpdatesChannel() tgbotapi.UpdatesChannel {
 	return b.bot.GetUpdatesChan(updateConfig)
 }
 
-// handleUpdates Инкапсулирет логику для работы с обновлениями
+// handleUpdates Инкапсулирует логику для работы с обновлениями
 func (b *Bot) handleUpdates(updates tgbotapi.UpdatesChannel) error {
 	for update := range updates {
 		if update.Message != nil {
